@@ -732,7 +732,7 @@
     <div class="card">
       <div class="card-title">
         Toutes semaines confondues · couleur = volume relatif
-        <span style="font-size:10px;color:var(--color-text-secondary);">💡 pic mardi–jeudi 9h–11h</span>
+        <span id="heatPeak" style="font-size:10px;color:var(--color-text-secondary);"></span>
       </div>
       <div class="heatmap-wrap" id="heatmapWrap"></div>
       <div style="display:flex;align-items:center;gap:5px;margin-top:8px;">
@@ -1291,8 +1291,8 @@
   // ── Render : Volume ───────────────────────────────────────────────────────────
   function renderVolume() {
     destroyChart('dow');
-    const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    const vals = [2704, 2248, 2067, 1938, 1922, 553, 367];
+    const days = DATA.heatmap.days;
+    const vals = DATA.heatmap.vals.map(row => row.reduce((a, b) => a + b, 0));
     charts['dow'] = new Chart($('dowChart').getContext('2d'), {
       type: 'bar',
       data: {
@@ -1342,6 +1342,11 @@
     $('heatLegend').innerHTML = ramp.map(c =>
       `<div style="width:16px;height:10px;background:${c};border-radius:2px;"></div>`
     ).join('');
+
+    // Dynamic peak label
+    let pV = 0, pD = 0, pH = 0;
+    hm.vals.forEach((row, di) => row.forEach((v, hi) => { if (v > pV) { pV = v; pD = di; pH = hi; } }));
+    $('heatPeak').textContent = `💡 pic ${hm.days[pD]} ${hm.hours[pH]}h`;
   }
 
   // ── Render : Topics ───────────────────────────────────────────────────────────
