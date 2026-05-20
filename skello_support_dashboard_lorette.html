@@ -1213,19 +1213,21 @@
     const agents = DATA.agents[weekIdx];
     const prev = weekIdx > 0 ? DATA.agents[weekIdx - 1] : null;
 
+    const nd = '<span style="color:var(--color-text-secondary);">—</span>';
     $('agentTbody').innerHTML = agents.map((a, i) => {
       const p = prev?.[i];
-      return `<tr>
+      const noData = a.conv === 0;
+      return `<tr${noData ? ' style="opacity:.45;"' : ''}>
       <td style="font-weight:600;">${a.name}</td>
       <td>${a.conv}</td>
-      <td>${deltaHtml(a.conv, p?.conv, true)}</td>
-      <td>${badgeFor(a.csat, 75, 65, '%')}</td>
-      <td>${deltaHtml(a.csat, p?.csat, true)}</td>
-      <td>${stars(a.score)} <span style="font-size:10px;color:var(--color-text-secondary);">${a.score.toFixed(1)}</span></td>
-      <td>${deltaHtml(a.score, p?.score, true)}</td>
-      <td>${badgeFor(a.frtPct, 45, 35, '%')}</td>
-      <td>${deltaHtml(a.frtPct, p?.frtPct, true)}</td>
-      <td style="color:var(--color-text-secondary);">${a.frtMed} min</td>
+      <td>${noData ? nd : deltaHtml(a.conv, p?.conv, true)}</td>
+      <td>${a.csat === null ? nd : badgeFor(a.csat, 75, 65, '%')}</td>
+      <td>${a.csat === null ? nd : deltaHtml(a.csat, p?.csat, true)}</td>
+      <td>${a.score === null ? nd : stars(a.score) + ' <span style="font-size:10px;color:var(--color-text-secondary);">' + a.score.toFixed(1) + '</span>'}</td>
+      <td>${a.score === null ? nd : deltaHtml(a.score, p?.score, true)}</td>
+      <td>${a.frtPct === null ? nd : badgeFor(a.frtPct, 45, 35, '%')}</td>
+      <td>${a.frtPct === null ? nd : deltaHtml(a.frtPct, p?.frtPct, true)}</td>
+      <td style="color:var(--color-text-secondary);">${a.frtMed === null ? nd : a.frtMed + ' min'}</td>
     </tr>`;
     }).join('');
 

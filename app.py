@@ -159,13 +159,15 @@ def build_data():
             answered = int(a["has_reply"].sum())
             hc       = int(a["has_csat"].sum())
             cp       = int(a["is_csat_positive"].sum()) if hc else 0
+            no_data  = len(a) == 0
             row.append({
                 "name":   name,
                 "conv":   int(len(a)),
-                "csat":   s(round(100 * cp / hc)) if hc else 0,
-                "score":  s(a["csat_rating"].mean(), 1),
-                "frtPct": s(round(100 * a["sla_met"].sum() / answered)) if answered else 0,
-                "frtMed": s(a["frt_minutes"].median(), 1),
+                # None → null en JSON → affiché "—" dans le dashboard
+                "csat":   None if no_data else (s(round(100 * cp / hc)) if hc else None),
+                "score":  None if no_data else s(a["csat_rating"].mean(), 1),
+                "frtPct": None if no_data else (s(round(100 * a["sla_met"].sum() / answered)) if answered else None),
+                "frtMed": None if no_data else s(a["frt_minutes"].median(), 1),
             })
         agents_data.append(row)
 
