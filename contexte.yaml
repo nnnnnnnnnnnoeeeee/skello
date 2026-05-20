@@ -1,0 +1,157 @@
+# Contexte
+
+Chez Skello, nous utilisons un outil de communication externe qui s’appelle [**Intercom**](https://www.intercom.com/) pour échanger avec nos clients. 
+
+Dès qu’un(e) client a une question ou souhaite échanger avec nous, il/elle peut ouvrir une pop-up depuis son navigateur pour démarrer une conversation écrite.
+
+On récupère les données de cet outil dans notre datawarehouse dans Snowflake afin de pouvoir fournir des analyses et des reportings aux équipes opérationnelles.
+
+Ces données sont notamment intéressantes pour l’équipe Support, qui est dirigée par Lorette : elle est responsable de la qualité de service fournie dès qu’une conversation est ouverte.
+
+Lorette anime chaque lundi matin un meeting avec son équipe, où elle évalue la performance de la semaine passée et les priorités de la semaine à venir. Elle n’a pour le moment pas de visibilité claire sur ces métriques et exprime le besoin de pouvoir s’appuyer sur un reporting bien construit.
+
+**Quelques unes des métriques qu’elle voudrait suivre sont entre autres** : la [CSAT](https://www.qualtrics.com/fr/gestion-de-l-experience/client/csat/?rid=langMatch&prevsite=en&newsite=fr&geo=&geomatch=), le pourcentage des conversations dont la première réponse est donnée en moins de 5mn, les moments dans la semaine où son équipe est le plus sollicitée, un détail par personne de son équipe...
+
+---
+
+### **Objectifs**
+
+A partir du set de données fournies :
+
+1. **Propose un modèle de données** (=ensemble de tables) qui serviront de base au reporting à destination de Lorette à partir des bases de données fournies (`CONVERSATIONS` et `CONVERSATION_PARTS`)
+2. **Propose un dashboard ou une structure de reporting** (=template de dashboard) qui pourrait selon toi convenir à Lorette pour qu’elle puisse présenter son meeting hebdomadaire en justifiant tes choix. 
+
+> N’hésite pas à indiquer les questions que tu aurais voulu poser à Lorette, ainsi que les choix que tu fais en fonction des informations partielles que tu as à disposition.
+> 
+
+---
+
+### Rendu
+
+- Il est demandé de construire le modèle de données avec des tables en base de données, dont les requêtes SQL seront à fournir.
+- L’utilisation d’un repo git pour la restitution du modèle de données est encouragée mais pas obligatoire.
+- La forme retenue pour le rendu reste tout à fait libre, choisis l’outil avec lequel tu es le plus à l’aise !
+
+---
+
+### **Critères d’évaluation**
+
+- La rigueur de rédaction du code SQL de construction du modèle de données.
+- La rigueur de la démarche, notamment en ce qui concerne la construction du modèle de données.
+- Le sens et la compréhension des enjeux business.
+- La capacité à présenter clairement et de manière synthétique un dashboard actionable qui répond à une problématique.
+- La prise d’initiative dans la démarche.
+
+---
+
+### Éléments explicatifs sur les données
+
+Fonctionnement d’intercom
+
+Lorsqu’un client fait une demande d’échange depuis l’application, une conversation est créée.
+
+Chaque conversation a un assignee (la personne à qui la conversation est assignée), que l’on peut retrouver via le `assignee_id`.
+
+4 personnes composent la team Support (en plus de Lorette) :
+
+- Héloise (ID 5217337)
+- Justine (ID 5391224)
+- Patrick (ID 5440474)
+- Raphael (ID 5300290)
+
+Les autres assignees ne font pas partie de la team Support.
+
+Chaque conversation a des éléments constitutifs qui représentent les actions qui sont faites sur cette conversation (envoi d’un message, assignation à une personne de l’équipe, fermeture de la conversation...) : ce sont les `conversation_parts`.
+
+Lorsqu’on parle de volume de messages, on ne parle que de `conversation_parts` de type "Messages" :
+
+- les messages des users sont les messages envoyés par les clients.
+- les messages des admins ou des bots sont les messages envoyés par Skello.
+
+On choisit de ne pas prendre en compte les messages envoyés par des bots dans l’analyse.
+
+Pour plus d’informations : https://www.intercom.com/drlp/ai-customer-service?utm_source=google&utm_medium=sem&utm_campaign=16438355659&utm_term=intercom&utm_ad_collection=135354092873&utm_ad=726268697185&utm_geo=1006094&gad_source=1&gad_campaignid=16438355659&gbraid=0AAAAAoKeDyJZ53j0dveKC6M8qou_tZThZ&gclid=Cj0KCQjwv-LOBhCdARIsAM5hdKf2pVYIRy0gQ9f46XJF4poDSVhXyCBKW9YL-_ginunKSpPV4ekzbg8aArfXEALw_wcB
+
+Documentation des tables
+
+```jsx
+CONVERSATIONS:
+- name: CONVERSATION_RATING
+	description: "The Conversation Rating object which contains information on the rating and/or remark added by a Contact and the Admin assigned to the conversation."
+- name: CREATED_AT
+  description: "The time the conversation was created."
+- name: ID
+  description: "The id representing the conversation."
+- name: OPEN
+  description: "Indicates whether a conversation is open (true) or closed (false)."
+- name: PRIORITY
+  description: "If marked as priority, it will return priority or else not_priority."
+- name: READ
+  description: "Indicates whether a conversation has been read."
+- name: STATE
+  description: "Can be set to "open", "closed" or "snoozed"."
+- name: TAGS
+  description: "A list of tags objects associated with a conversation"
+- name: TYPE
+  description: "Always conversation."
+- name: UPDATED_AT
+  description: "The last time the conversation was updated."
+- name: WAITING_SINCE
+  description: "The last time a Contact responded to an Admin. In other words, the time a customer started waiting for a response. Set to null if last reply is from an Admin."
+- name: ASSIGNEE
+  description: "The ID of the admin or team to whom the conversation was assigned during this step."
+- name: SNOOZED_UNTIL
+  description: "If set this is the time in the future when this conversation will be marked as open. i.e. it will be in a snoozed state until this time. i.e. it will be in a snoozed state until this time."
+- name: _sdc_extracted_at
+	description: "Timestamp when the data was extracted from the Intercom source by the ETL."
+- name: _sdc_received_at
+  description: "Timestamp when the data was received in the warehouse by the ETL."
+- name: _sdc_batched_at
+  description: "Timestamp of the ETL loading batch."
+- name: _sdc_sequence
+  description: "Sequence number used by the ETL to manage the order of updates."
+- name: _sdc_table_version
+  description: "Table version used by the ETL."
+
+CONVERSATION_PARTS:
+- name: id
+  description: "The id representing the conversation part."
+- name: conversation_id
+  description: "The unique identifier of the parent conversation this part belongs to."
+- name: type
+  description: "Always conversation_part"
+- name: part_type
+  description: "The type of conversation part."
+- name: author
+  description: "The object who initiated the conversation, which can be a Contact, Admin or Team. Bots and campaigns send messages on behalf of Admins or Teams. For Twitter, this will be blank."
+- name: assigned_to
+  description: "The ID of the admin or team to whom the conversation was assigned during this step."
+- name: body
+  description: "The message body, which may contain HTML. For Twitter, this will show a generic message regarding why the body is obscured. In webhook payloads for API version 2.15+, this field returns plain text."
+- name: attachments
+  description: "A list of attachments for the part."
+- name: created_at
+  description: "The time the conversation part was created."
+- name: updated_at
+  description: "The last time the conversation part was updated."
+- name: notified_at
+  description: "Timestamp indicating when participants were notified of this update."
+- name: conversation_created_at
+  description: "Creation date of the parent conversation."
+- name: conversation_updated_at
+  description: "Last update date of the parent conversation."
+- name: part_group
+  description: "Technical field used to group certain related parts together."
+- name: _sdc_extracted_at
+	description: "Timestamp when the data was extracted from the Intercom source by the ETL."
+- name: _sdc_received_at
+  description: "Timestamp when the data was received in the warehouse by the ETL."
+- name: _sdc_batched_at
+  description: "Timestamp of the ETL loading batch."
+- name: _sdc_sequence
+  description: "Sequence number used by the ETL to manage the order of updates."
+- name: _sdc_table_version
+  description: "Table version used by the ETL."
+```
+
+---
