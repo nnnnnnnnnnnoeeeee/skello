@@ -23,6 +23,16 @@
     --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
   *,
   *::before,
   *::after {
@@ -85,11 +95,20 @@
     font-size: 13px;
     cursor: pointer;
     color: var(--color-text-primary);
-    transition: background .12s;
+    transition: background .12s, transform .1s, box-shadow .12s;
+    user-select: none;
   }
 
   .week-nav button:hover:not(:disabled) {
     background: var(--color-background-tertiary);
+    box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  }
+
+  .week-nav button:active:not(:disabled) {
+    transform: scale(.88);
+    background: var(--skello-purple-light);
+    border-color: var(--skello-purple);
+    color: var(--skello-purple);
   }
 
   .week-nav button:disabled {
@@ -168,18 +187,24 @@
     border: 0.5px solid var(--color-border-secondary);
     background: transparent;
     color: var(--color-text-secondary);
-    transition: all .12s;
+    transition: background .15s, color .15s, border-color .15s, transform .1s, box-shadow .15s;
     white-space: nowrap;
+    user-select: none;
   }
 
   .tab.active {
     background: var(--skello-purple);
     color: #fff;
     border-color: var(--skello-purple);
+    box-shadow: 0 2px 8px rgba(83,74,183,.35);
   }
 
   .tab:hover:not(.active) {
     background: var(--color-background-secondary);
+  }
+
+  .tab:active {
+    transform: scale(.95);
   }
 
   .section-title {
@@ -259,6 +284,7 @@
     height: 4px;
     border-radius: 2px;
     background: var(--skello-purple);
+    transition: width .5s cubic-bezier(.4, 0, .2, 1), background .3s;
   }
 
   .t-up {
@@ -366,33 +392,46 @@
   .agt-tbl {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 11.5px;
+  }
+
+  .agt-tbl thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
   }
 
   .agt-tbl th {
     font-weight: 600;
     color: var(--color-text-secondary);
     text-align: left;
-    padding: 4px 5px;
-    border-bottom: 0.5px solid var(--color-border-tertiary);
+    padding: 7px 7px 6px;
+    border-bottom: 1px solid var(--color-border-tertiary);
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .04em;
     white-space: nowrap;
+    background: var(--color-background-primary);
   }
 
   .agt-tbl td {
-    padding: 7px 5px;
+    padding: 9px 7px;
     border-bottom: 0.5px solid var(--color-border-tertiary);
     vertical-align: middle;
+    transition: background .15s;
+  }
+
+  .agt-tbl tbody tr:nth-child(even) td {
+    background: #FAFBFC;
   }
 
   .agt-tbl tr:last-child td {
     border-bottom: none;
   }
 
-  .agt-tbl tr:hover td {
-    background: var(--color-background-secondary);
+  .agt-tbl tbody tr:hover td {
+    background: var(--skello-purple-light) !important;
+    transition: background .1s;
   }
 
   .d-pos {
@@ -997,6 +1036,21 @@
     if (charts[key]) { charts[key].destroy(); delete charts[key]; }
   }
 
+  function countUp(el, target, suffix = '', decimals = 0, duration = 380) {
+    const raw = el.textContent.replace(/[^0-9.]/g, '');
+    const start = parseFloat(raw) || 0;
+    if (start === target) { el.textContent = (decimals ? target.toFixed(decimals) : target) + suffix; return; }
+    const startTime = performance.now();
+    const tick = (now) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      const val = start + (target - start) * ease;
+      el.textContent = (decimals ? val.toFixed(decimals) : Math.round(val)) + suffix;
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
   function last8Labels() {
     const start = Math.max(0, weekIdx - 7);
     return DATA.weeks.slice(start, weekIdx + 1).map(w => w.split(' ')[0]);
@@ -1030,20 +1084,20 @@
     $('btnNext').disabled = weekIdx === DATA.weeks.length - 1;
 
     // Conversations
-    $('v-conv').textContent = w.conv;
+    countUp($('v-conv'), w.conv, '', 0);
     $('s-conv').textContent = `dont ${w.prio} prioritaires`;
     $('t-conv').innerHTML = trendHtml(w.conv, p?.conv, '', true);
 
     // CSAT positif
-    $('v-csat').textContent = w.csatPos + '%';
+    countUp($('v-csat'), w.csatPos, '%', 0);
     $('s-csat').textContent = `sur ${w.rated} évaluées`;
     $('t-csat').innerHTML = trendHtml(w.csatPos, p?.csatPos, '%', true);
-    $('p-csat').style.width = Math.min(100, w.csatPos * 100 / 100) + '%';
+    $('p-csat').style.width = Math.min(100, w.csatPos) + '%';
     $('p-csat').style.background = w.csatPos >= 75 ? T : w.csatPos >= 65 ? AM : C;
     $('kc-csat').className = 'kpi ' + kpiClass(w.csatPos, 75, 65);
 
     // FRT <5min
-    $('v-frt').textContent = w.frtPct + '%';
+    countUp($('v-frt'), w.frtPct, '%', 0);
     $('s-frt').textContent = 'réponses < 5 min';
     $('t-frt').innerHTML = trendHtml(w.frtPct, p?.frtPct, '%', true);
     $('p-frt').style.width = Math.min(100, w.frtPct) + '%';
@@ -1051,13 +1105,13 @@
     $('kc-frt').className = 'kpi ' + kpiClass(w.frtPct, 45, 35);
 
     // Score moyen
-    $('v-score').textContent = w.avgScore.toFixed(1) + '/5';
+    countUp($('v-score'), w.avgScore, '/5', 1);
     $('s-score').innerHTML = stars(w.avgScore);
     $('t-score').innerHTML = trendHtml(w.avgScore, p?.avgScore, '', true);
     $('kc-score').className = 'kpi ' + kpiClass(w.avgScore, 4.2, 3.9);
 
     // Taux d'évaluation
-    $('v-eval').textContent = evalRate + '%';
+    countUp($('v-eval'), evalRate, '%', 0);
     $('s-eval').textContent = `${w.rated} / ${w.conv} convs`;
     $('t-eval').innerHTML = p ? trendHtml(evalRate, Math.round(100 * p.rated / p.conv), '%', true) : '';
     $('kc-eval').className = 'kpi ' + (evalRate >= 15 ? 'k-good' : evalRate >= 10 ? 'k-warn' : 'k-bad');
@@ -1419,15 +1473,30 @@
 
   // ── Navigation ────────────────────────────────────────────────────────────────
   function changeWeek(dir) {
-    weekIdx = Math.max(0, Math.min(DATA.weeks.length - 1, weekIdx + dir));
-    renderKpis();
-    if (!$('tab-agents').hidden && $('tab-agents').style.display !== 'none') renderAgents();
-    if (!$('tab-topics').hidden && $('tab-topics').style.display !== 'none') renderTopics();
+    const newIdx = Math.max(0, Math.min(DATA.weeks.length - 1, weekIdx + dir));
+    if (newIdx === weekIdx) return;
+
+    const active = document.querySelector('[id^="tab-"]:not([style*="none"])') || $('tab-team');
+    active.style.transition = 'opacity .1s';
+    active.style.opacity = '0';
+
+    setTimeout(() => {
+      weekIdx = newIdx;
+      renderKpis();
+      if ($('tab-agents').style.display !== 'none') renderAgents();
+      if ($('tab-topics').style.display !== 'none') renderTopics();
+      active.style.opacity = '1';
+      active.style.transition = 'opacity .2s';
+    }, 90);
   }
 
   function switchTab(name, el) {
     document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
-    $('tab-' + name).style.display = '';
+    const tab = $('tab-' + name);
+    tab.style.display = '';
+    tab.style.animation = 'none';
+    tab.offsetHeight; // force reflow to restart animation
+    tab.style.animation = 'fadeUp .22s ease both';
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
     if (name === 'agents') renderAgents();
