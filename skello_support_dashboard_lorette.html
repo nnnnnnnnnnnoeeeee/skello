@@ -1,0 +1,972 @@
+
+<h2 class="sr-only">Dashboard hebdomadaire de l'équipe Support Skello — métriques de performance pour le meeting de Lorette</h2>
+
+<style>
+:root {
+  --skello-purple:       #534AB7;
+  --skello-purple-light: #EEEDFE;
+  --skello-teal:         #1D9E75;
+  --skello-teal-light:   #E1F5EE;
+  --skello-amber:        #BA7517;
+  --skello-amber-light:  #FAEEDA;
+  --skello-coral:        #D85A30;
+  --skello-coral-light:  #FAECE7;
+  --skello-green:        #639922;
+  --skello-green-light:  #EAF3DE;
+  /* theme fallbacks */
+  --color-background-primary:   #FFFFFF;
+  --color-background-secondary: #F4F5F7;
+  --color-background-tertiary:  #EAECEF;
+  --color-text-primary:         #172B4D;
+  --color-text-secondary:       #6B778C;
+  --color-border-secondary:     #DFE1E6;
+  --color-border-tertiary:      #EBECF0;
+  --border-radius-md: 6px;
+  --border-radius-lg: 8px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); background: var(--color-background-primary); color: var(--color-text-primary); }
+.dash { padding: 1.25rem 1rem 2.5rem; max-width: 800px; }
+
+/* ── Header ── */
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; gap: 12px; }
+.header-left h1 { font-size: 16px; font-weight: 600; }
+.header-left p  { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+.week-nav { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.week-nav button {
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 4px 9px; font-size: 13px; cursor: pointer;
+  color: var(--color-text-primary); transition: background .12s;
+}
+.week-nav button:hover:not(:disabled) { background: var(--color-background-tertiary); }
+.week-nav button:disabled { opacity: .35; cursor: not-allowed; }
+.week-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); min-width: 155px; text-align: center; }
+.kbd-hint { font-size: 10px; color: var(--color-text-secondary); margin-top: 2px; text-align: right; }
+
+/* ── Summary ribbon ── */
+.ribbon { display: flex; gap: 6px; margin-bottom: .9rem; flex-wrap: wrap; }
+.insight { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border-radius: var(--border-radius-md); font-size: 11px; line-height: 1.4; flex: 1; min-width: 180px; }
+.i-good { background: var(--skello-teal-light);  color: #085041; }
+.i-warn { background: var(--skello-amber-light); color: #633806; }
+.i-bad  { background: var(--skello-coral-light); color: #4A1B0C; }
+.i-icon { font-size: 13px; flex-shrink: 0; }
+
+/* ── Tabs ── */
+.tab-row { display: flex; gap: 4px; margin-bottom: 1rem; flex-wrap: wrap; }
+.tab { padding: 5px 11px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-secondary); transition: all .12s; white-space: nowrap; }
+.tab.active { background: var(--skello-purple); color: #fff; border-color: var(--skello-purple); }
+.tab:hover:not(.active) { background: var(--color-background-secondary); }
+
+.section-title { font-size: 10px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .07em; margin: 1.1rem 0 .55rem; }
+
+/* ── KPI grid ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+.kpi { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 11px; border: 1px solid transparent; transition: border-color .2s; }
+.kpi.k-good  { border-color: #7CB342; background: var(--skello-green-light); }
+.kpi.k-warn  { border-color: var(--skello-amber); background: var(--skello-amber-light); }
+.kpi.k-bad   { border-color: var(--skello-coral); background: var(--skello-coral-light); }
+.kpi .lbl  { font-size: 10px; color: var(--color-text-secondary); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .val  { font-size: 19px; font-weight: 600; line-height: 1.1; }
+.kpi .sub  { font-size: 10px; color: var(--color-text-secondary); margin-top: 2px; }
+.kpi .trnd { font-size: 10px; margin-top: 3px; }
+.kpi .prog { height: 4px; background: var(--color-background-tertiary); border-radius: 2px; margin-top: 5px; }
+.kpi .prog span { display: block; height: 4px; border-radius: 2px; background: var(--skello-purple); }
+.t-up  { color: var(--skello-teal); }
+.t-dn  { color: var(--skello-coral); }
+.t-neu { color: var(--color-text-secondary); }
+
+/* ── Alerts ── */
+.alerts { display: flex; flex-direction: column; gap: 5px; }
+.alert  { display: flex; gap: 8px; padding: 7px 11px; border-radius: var(--border-radius-md); font-size: 11px; line-height: 1.4; }
+.a-good { background: var(--skello-teal-light);  color: #085041; }
+.a-warn { background: var(--skello-amber-light); color: #633806; }
+.a-bad  { background: var(--skello-coral-light); color: #4A1B0C; }
+.a-icon { font-size: 13px; flex-shrink: 0; }
+
+/* ── Cards ── */
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 13px 15px; }
+.card-title { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 10px; font-weight: 500; }
+.b-good { background: var(--skello-teal-light);  color: #085041; }
+.b-warn { background: var(--skello-amber-light); color: #633806; }
+.b-bad  { background: var(--skello-coral-light); color: #4A1B0C; }
+.b-neu  { background: var(--color-background-tertiary); color: var(--color-text-secondary); }
+
+/* ── Agent table ── */
+.agt-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+.agt-tbl th { font-weight: 600; color: var(--color-text-secondary); text-align: left; padding: 4px 5px; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.agt-tbl td { padding: 7px 5px; border-bottom: 0.5px solid var(--color-border-tertiary); vertical-align: middle; }
+.agt-tbl tr:last-child td { border-bottom: none; }
+.agt-tbl tr:hover td { background: var(--color-background-secondary); }
+.d-pos { color: var(--skello-teal);  font-size: 10px; font-weight: 500; }
+.d-neg { color: var(--skello-coral); font-size: 10px; font-weight: 500; }
+.d-neu { color: var(--color-text-secondary); font-size: 10px; }
+
+/* ── Stars ── */
+.stars { display: flex; gap: 1px; }
+.s-on  { color: #EF9F27; font-size: 11px; }
+.s-off { color: var(--color-border-secondary); font-size: 11px; }
+
+/* ── CSAT dist ── */
+.csat-dist { display: flex; align-items: flex-end; gap: 5px; height: 80px; }
+.csat-col  { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
+.csat-bwrap { width: 100%; display: flex; align-items: flex-end; height: 58px; }
+.csat-bar   { width: 100%; border-radius: 3px 3px 0 0; transition: height .3s; }
+.csat-lbl   { font-size: 9px; color: var(--color-text-secondary); }
+.csat-pct   { font-size: 9px; color: var(--color-text-secondary); }
+
+/* ── Heatmap ── */
+.heatmap-wrap { overflow-x: auto; }
+.heatmap { border-collapse: separate; border-spacing: 2px; font-size: 9px; }
+.heatmap th { padding: 2px 3px; color: var(--color-text-secondary); font-weight: 400; text-align: center; }
+.heatmap td { width: 28px; height: 21px; text-align: center; border-radius: 3px; cursor: default; transition: outline .1s; }
+.heatmap td:hover { outline: 1.5px solid var(--skello-purple); outline-offset: -1px; }
+
+/* ── Tags ── */
+.tag-list { display: flex; flex-direction: column; gap: 6px; }
+.tag-row  { display: flex; align-items: center; gap: 7px; }
+.tag-name  { font-size: 11px; width: 100px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag-bwrap { flex: 1; background: var(--color-background-secondary); border-radius: 3px; height: 7px; }
+.tag-bar   { height: 7px; border-radius: 3px; background: var(--skello-purple); transition: width .4s; }
+.tag-cnt   { font-size: 10px; color: var(--color-text-secondary); min-width: 28px; text-align: right; }
+.tag-delta { font-size: 10px; min-width: 38px; text-align: right; font-weight: 500; }
+
+/* ── Dashed target line legend ── */
+.leg-dashed { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--color-text-secondary); }
+.leg-line { width: 18px; border-top: 2px dashed #D85A30; display: inline-block; }
+</style>
+
+<div class="dash">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    <div class="header-left">
+      <h1>Support — meeting hebdomadaire</h1>
+      <p>Préparé pour Lorette · données Intercom via Snowflake</p>
+    </div>
+    <div>
+      <div class="week-nav">
+        <button id="btnPrev" onclick="changeWeek(-1)" aria-label="Semaine précédente">‹</button>
+        <span class="week-label" id="weekLabel"></span>
+        <button id="btnNext" onclick="changeWeek(1)" aria-label="Semaine suivante">›</button>
+      </div>
+      <div class="kbd-hint">← → pour naviguer</div>
+    </div>
+  </div>
+
+  <!-- ═══ AUTO-INSIGHTS RIBBON ═══ -->
+  <div class="ribbon" id="ribbon"></div>
+
+  <!-- ═══ TABS ═══ -->
+  <div class="tab-row">
+    <button class="tab active" onclick="switchTab('team',this)">Équipe</button>
+    <button class="tab" onclick="switchTab('agents',this)">Individuel</button>
+    <button class="tab" onclick="switchTab('volume',this)">Volume & horaires</button>
+    <button class="tab" onclick="switchTab('topics',this)">Thèmes</button>
+    <button class="tab" onclick="switchTab('model',this)">Modèle</button>
+  </div>
+
+  <!-- ═══ TAB : ÉQUIPE ═══ -->
+  <div id="tab-team">
+
+    <p class="section-title">KPIs de la semaine</p>
+    <div class="kpi-grid">
+      <div class="kpi" id="kc-conv">
+        <div class="lbl">Conversations</div>
+        <div class="val" id="v-conv">—</div>
+        <div class="sub" id="s-conv"></div>
+        <div class="trnd" id="t-conv"></div>
+      </div>
+      <div class="kpi" id="kc-csat">
+        <div class="lbl">CSAT positif</div>
+        <div class="val" id="v-csat">—</div>
+        <div class="sub" id="s-csat"></div>
+        <div class="trnd" id="t-csat"></div>
+        <div class="prog"><span id="p-csat"></span></div>
+      </div>
+      <div class="kpi" id="kc-frt">
+        <div class="lbl">FRT &lt; 5 min</div>
+        <div class="val" id="v-frt">—</div>
+        <div class="sub" id="s-frt"></div>
+        <div class="trnd" id="t-frt"></div>
+        <div class="prog"><span id="p-frt"></span></div>
+      </div>
+      <div class="kpi" id="kc-score">
+        <div class="lbl">Score CSAT moy.</div>
+        <div class="val" id="v-score">—</div>
+        <div class="sub" id="s-score"></div>
+        <div class="trnd" id="t-score"></div>
+      </div>
+      <div class="kpi" id="kc-eval">
+        <div class="lbl">Taux d'éval. CSAT</div>
+        <div class="val" id="v-eval">—</div>
+        <div class="sub" id="s-eval"></div>
+        <div class="trnd" id="t-eval"></div>
+      </div>
+    </div>
+
+    <p class="section-title">Points d'attention</p>
+    <div class="alerts" id="alertBox"></div>
+
+    <p class="section-title">Distribution CSAT &amp; évolution FRT</p>
+    <div class="chart-row">
+      <div class="card">
+        <div class="card-title">
+          Notes CSAT (1→5)
+          <span class="badge b-neu" id="csatPosBadge">—</span>
+        </div>
+        <div class="csat-dist" id="csatDist"></div>
+        <div id="csatLegend" style="margin-top:7px;font-size:10px;color:var(--color-text-secondary);"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">
+          FRT médian (min)
+          <span class="leg-dashed"><span class="leg-line"></span>objectif 5 min</span>
+        </div>
+        <div style="position:relative;height:120px;">
+          <canvas id="frtChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-title">Évolution sur 8 semaines</p>
+    <div class="chart-row">
+      <div class="card">
+        <div class="card-title">Volume de conversations</div>
+        <div style="position:relative;height:110px;">
+          <canvas id="convTrend"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">
+          CSAT positif %
+          <span class="leg-dashed"><span class="leg-line" style="border-color:#BA7517;"></span>objectif 70%</span>
+        </div>
+        <div style="position:relative;height:110px;">
+          <canvas id="csatTrend"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB : INDIVIDUEL ═══ -->
+  <div id="tab-agents" style="display:none;">
+
+    <p class="section-title">Performance par agent — semaine vs S‑1</p>
+    <div class="card" style="padding:11px 13px;">
+      <table class="agt-tbl">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Conv.</th><th>Δ</th>
+            <th>CSAT pos.</th><th>Δ</th>
+            <th>Score</th><th>Δ</th>
+            <th>FRT &lt;5min</th><th>Δ</th>
+            <th>FRT méd.</th>
+          </tr>
+        </thead>
+        <tbody id="agentTbody"></tbody>
+      </table>
+    </div>
+    <p style="font-size:10px;color:var(--color-text-secondary);margin-top:6px;">Δ = variation vs semaine précédente · 🟢 amélioration · 🔴 dégradation</p>
+
+    <p class="section-title">Conversations traitées par agent</p>
+    <div class="card">
+      <div style="position:relative;height:150px;">
+        <canvas id="agentBarChart"></canvas>
+      </div>
+    </div>
+
+    <p class="section-title">FRT médian par agent (min)</p>
+    <div class="card">
+      <div class="card-title">
+        Comparaison inter-agents
+        <span class="leg-dashed"><span class="leg-line"></span>objectif 5 min</span>
+      </div>
+      <div style="position:relative;height:130px;">
+        <canvas id="agentFrtChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB : VOLUME & HORAIRES ═══ -->
+  <div id="tab-volume" style="display:none;">
+
+    <p class="section-title">Volume par jour de semaine (toutes semaines)</p>
+    <div class="card">
+      <div style="position:relative;height:140px;">
+        <canvas id="dowChart"></canvas>
+      </div>
+    </div>
+
+    <p class="section-title">Heatmap — heure d'arrivée des conversations</p>
+    <div class="card">
+      <div class="card-title">
+        Toutes semaines confondues · couleur = volume relatif
+        <span style="font-size:10px;color:var(--color-text-secondary);">💡 pic mardi–jeudi 9h–11h</span>
+      </div>
+      <div class="heatmap-wrap" id="heatmapWrap"></div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:8px;">
+        <span style="font-size:10px;color:var(--color-text-secondary);">Faible</span>
+        <div style="display:flex;gap:2px;" id="heatLegend"></div>
+        <span style="font-size:10px;color:var(--color-text-secondary);">Fort</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB : THÈMES ═══ -->
+  <div id="tab-topics" style="display:none;">
+
+    <p class="section-title">Top thèmes — <span id="topicsWeekLbl"></span></p>
+    <div class="card">
+      <div class="tag-list" id="tagList"></div>
+    </div>
+    <p style="font-size:10px;color:var(--color-text-secondary);margin-top:7px;">
+      Tags posés automatiquement par Intercom lors du routage. Δ = variation vs semaine précédente.
+    </p>
+
+    <p class="section-title">Évolution des 3 principaux thèmes</p>
+    <div class="card">
+      <div style="position:relative;height:140px;">
+        <canvas id="tagTrendChart"></canvas>
+      </div>
+      <div id="tagTrendLegend" style="margin-top:7px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB : MODÈLE ═══ -->
+  <div id="tab-model" style="display:none;">
+    <p class="section-title">Architecture du modèle de données</p>
+    <div class="card" style="font-size:12px;line-height:1.75;">
+
+      <div style="font-weight:600;margin-bottom:8px;">Layer 1 — Staging
+        <span style="font-weight:400;color:var(--color-text-secondary);"> · parsing JSON, typage, déduplication ETL</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-purple-light);color:#3C3489;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">STG_CONVERSATIONS</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Parse ASSIGNEE, CONVERSATION_RATING, TAGS · déduplication sur _SDC_EXTRACTED_AT (QUALIFY ROW_NUMBER)</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-purple-light);color:#3C3489;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">STG_CONVERSATION_PARTS</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Parse AUTHOR · exclut les bots (WHERE author_type &lt;&gt; 'bot') · expose part_group propre</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-purple-light);color:#3C3489;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">STG_CONVERSATION_TAGS</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">LATERAL FLATTEN du JSON TAGS · 1 ligne par tag par conversation</span>
+        </div>
+      </div>
+
+      <div style="border-top:0.5px solid var(--color-border-tertiary);padding-top:11px;font-weight:600;margin-bottom:8px;">Layer 2 — Marts
+        <span style="font-weight:400;color:var(--color-text-secondary);"> · agrégations précalculées pour le reporting</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-teal-light);color:#085041;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">FACT_CONVERSATIONS</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Grain : 1 ligne/conv · FRT (1er msg client → 1ère réponse admin), CSAT, durée, dimensions temporelles</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-teal-light);color:#085041;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">AGG_WEEKLY_TEAM</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Grain : semaine · CSAT positif %, score moyen, FRT &lt;5min %, FRT médian, conversations prioritaires</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-teal-light);color:#085041;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">AGG_WEEKLY_AGENT</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Grain : semaine × agent · toutes les métriques ci-dessus par personne (JOIN INNER sur DIM_SUPPORT_AGENTS)</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-teal-light);color:#085041;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">AGG_HOURLY_VOLUME</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Grain : jour de semaine × heure · heatmap de charge pour le planning</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-teal-light);color:#085041;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">AGG_TAGS_WEEKLY</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Grain : semaine × tag · thèmes récurrents (LATERAL FLATTEN → agrégation)</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="background:var(--skello-teal-light);color:#085041;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;">AGG_CSAT_DISTRIBUTION</span>
+          <span style="color:var(--color-text-secondary);font-size:11px;">Grain : semaine × note · distribution 1–5 avec % — détecte les dérives de qualité</span>
+        </div>
+      </div>
+
+      <div style="border-top:0.5px solid var(--color-border-tertiary);padding-top:11px;font-weight:600;margin-bottom:6px;">Choix de modélisation clés</div>
+      <ul style="margin-left:14px;font-size:11px;color:var(--color-text-secondary);line-height:1.9;">
+        <li><strong>FRT</strong> = écart 1er message <em>client</em> → 1ère réponse <em>admin</em> humain (bots exclus) — mesure la réactivité réelle perçue</li>
+        <li><strong>CSAT positif</strong> = note ≥ 4 sur 5 (Intercom : 4 = Bon, 5 = Excellent)</li>
+        <li><strong>Déduplication ETL</strong> via QUALIFY ROW_NUMBER OVER (PARTITION BY ID ORDER BY _SDC_EXTRACTED_AT DESC)</li>
+        <li><strong>Dénominateur SLA</strong> = conversations ayant reçu une réponse (exclut les convs abandonnées par le client)</li>
+        <li>Conversations non assignées à l'équipe conservées dans FACT mais exclues des marts individuels</li>
+      </ul>
+
+      <div style="border-top:0.5px solid var(--color-border-tertiary);padding-top:11px;margin-top:11px;font-weight:600;margin-bottom:6px;">Questions pour Lorette</div>
+      <ul style="margin-left:14px;font-size:11px;color:var(--color-text-secondary);line-height:1.9;">
+        <li>La SLA FRT est-elle officiellement fixée à 5 min ? S'applique-t-elle hors heures ouvrées ?</li>
+        <li>Les conversations réouvertes doivent-elles être recomptées dans la semaine de réouverture ?</li>
+        <li>Faut-il suivre les conversations prioritaires avec une SLA spécifique ?</li>
+        <li>Le bot de 1er niveau fait-il partie du process officiel (impact sur le FRT perçu) ?</li>
+        <li>Préférence : comparer vs semaine précédente ou vs objectif fixe ?</li>
+        <li>Faut-il convertir les timestamps UTC → Europe/Paris pour l'heatmap ?</li>
+      </ul>
+    </div>
+  </div>
+
+</div><!-- .dash -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const DATA = {
+  weeks: [
+    "25 oct – 31 oct 2021","1 nov – 7 nov 2021","8 nov – 14 nov 2021",
+    "15 nov – 21 nov 2021","22 nov – 28 nov 2021","29 nov – 5 déc 2021",
+    "6 déc – 12 déc 2021","13 déc – 19 déc 2021","20 déc – 26 déc 2021",
+    "3 jan – 9 jan 2022","10 jan – 16 jan 2022","17 jan – 23 jan 2022",
+    "24 jan – 31 jan 2022",
+  ],
+  // conv, csatPos(%), avgScore, frtPct(%), medFrt(min), rated, prio
+  team: [
+    {conv:483,csatPos:71,avgScore:4.1,frtPct:39,medFrt:7.8,rated:68,prio:12},
+    {conv:611,csatPos:74,avgScore:4.2,frtPct:41,medFrt:7.1,rated:82,prio:15},
+    {conv:598,csatPos:68,avgScore:4.0,frtPct:38,medFrt:8.3,rated:79,prio:18},
+    {conv:702,csatPos:72,avgScore:4.1,frtPct:40,medFrt:7.6,rated:93,prio:21},
+    {conv:648,csatPos:76,avgScore:4.3,frtPct:44,medFrt:6.9,rated:87,prio:14},
+    {conv:521,csatPos:70,avgScore:4.0,frtPct:37,medFrt:8.9,rated:71,prio:10},
+    {conv:589,csatPos:73,avgScore:4.1,frtPct:42,medFrt:7.4,rated:78,prio:16},
+    {conv:412,csatPos:69,avgScore:4.0,frtPct:36,medFrt:9.1,rated:55,prio:9 },
+    {conv:231,csatPos:65,avgScore:3.8,frtPct:32,medFrt:11.2,rated:31,prio:5},
+    {conv:634,csatPos:77,avgScore:4.3,frtPct:45,medFrt:6.7,rated:84,prio:17},
+    {conv:718,csatPos:79,avgScore:4.4,frtPct:47,medFrt:6.2,rated:95,prio:22},
+    {conv:682,csatPos:75,avgScore:4.2,frtPct:43,medFrt:7.0,rated:91,prio:19},
+    {conv:541,csatPos:72,avgScore:4.1,frtPct:40,medFrt:7.5,rated:72,prio:13},
+  ],
+  // [1★, 2★, 3★, 4★, 5★]
+  csat: [
+    [5,8,18,42,53],[6,9,22,51,61],[7,10,20,48,58],[8,11,25,55,67],
+    [4,7,19,49,60],[5,8,18,44,54],[6,9,21,47,57],[4,7,17,38,48],
+    [3,5,11,21,28],[4,6,17,50,62],[5,7,19,55,67],[6,8,22,53,65],
+    [5,8,19,46,56],
+  ],
+  // agents per week: name, conv, csat(%), score, frtPct(%), frtMed(min)
+  agents: [
+    [{name:"Héloise",conv:142,csat:73,score:4.2,frtPct:42,frtMed:7.1},{name:"Justine",conv:118,csat:68,score:4.0,frtPct:38,frtMed:8.3},{name:"Patrick",conv:124,csat:71,score:4.1,frtPct:40,frtMed:7.6},{name:"Raphaël",conv:99,csat:70,score:4.0,frtPct:36,frtMed:9.0}],
+    [{name:"Héloise",conv:178,csat:76,score:4.3,frtPct:44,frtMed:6.8},{name:"Justine",conv:152,csat:72,score:4.1,frtPct:41,frtMed:7.3},{name:"Patrick",conv:161,csat:74,score:4.2,frtPct:43,frtMed:7.0},{name:"Raphaël",conv:120,csat:73,score:4.1,frtPct:39,frtMed:7.9}],
+    [{name:"Héloise",conv:168,csat:70,score:4.0,frtPct:39,frtMed:8.0},{name:"Justine",conv:141,csat:66,score:3.9,frtPct:37,frtMed:8.8},{name:"Patrick",conv:155,csat:68,score:4.0,frtPct:38,frtMed:8.5},{name:"Raphaël",conv:134,csat:69,score:4.0,frtPct:36,frtMed:9.2}],
+    [{name:"Héloise",conv:198,csat:74,score:4.2,frtPct:42,frtMed:7.2},{name:"Justine",conv:173,csat:70,score:4.0,frtPct:39,frtMed:7.9},{name:"Patrick",conv:185,csat:72,score:4.1,frtPct:41,frtMed:7.5},{name:"Raphaël",conv:146,csat:71,score:4.1,frtPct:38,frtMed:8.1}],
+    [{name:"Héloise",conv:184,csat:78,score:4.4,frtPct:46,frtMed:6.5},{name:"Justine",conv:158,csat:75,score:4.2,frtPct:43,frtMed:7.0},{name:"Patrick",conv:170,csat:76,score:4.3,frtPct:45,frtMed:6.7},{name:"Raphaël",conv:136,csat:74,score:4.2,frtPct:41,frtMed:7.4}],
+    [{name:"Héloise",conv:148,csat:72,score:4.1,frtPct:39,frtMed:7.8},{name:"Justine",conv:122,csat:68,score:4.0,frtPct:36,frtMed:9.1},{name:"Patrick",conv:139,csat:70,score:4.0,frtPct:38,frtMed:8.6},{name:"Raphaël",conv:112,csat:69,score:4.0,frtPct:35,frtMed:9.4}],
+    [{name:"Héloise",conv:165,csat:75,score:4.2,frtPct:44,frtMed:6.9},{name:"Justine",conv:144,csat:71,score:4.1,frtPct:41,frtMed:7.4},{name:"Patrick",conv:158,csat:73,score:4.2,frtPct:43,frtMed:7.1},{name:"Raphaël",conv:122,csat:72,score:4.1,frtPct:39,frtMed:7.8}],
+    [{name:"Héloise",conv:118,csat:71,score:4.0,frtPct:38,frtMed:8.2},{name:"Justine",conv:99,csat:67,score:3.9,frtPct:35,frtMed:9.3},{name:"Patrick",conv:109,csat:69,score:4.0,frtPct:37,frtMed:8.9},{name:"Raphaël",conv:86,csat:68,score:3.9,frtPct:34,frtMed:9.6}],
+    [{name:"Héloise",conv:68,csat:67,score:3.8,frtPct:34,frtMed:10.8},{name:"Justine",conv:54,csat:64,score:3.7,frtPct:31,frtMed:11.9},{name:"Patrick",conv:61,csat:65,score:3.8,frtPct:32,frtMed:11.4},{name:"Raphaël",conv:48,csat:63,score:3.7,frtPct:30,frtMed:12.1}],
+    [{name:"Héloise",conv:181,csat:79,score:4.4,frtPct:47,frtMed:6.4},{name:"Justine",conv:154,csat:75,score:4.2,frtPct:44,frtMed:6.9},{name:"Patrick",conv:168,csat:77,score:4.3,frtPct:46,frtMed:6.6},{name:"Raphaël",conv:131,csat:76,score:4.3,frtPct:42,frtMed:7.2}],
+    [{name:"Héloise",conv:205,csat:81,score:4.5,frtPct:49,frtMed:6.0},{name:"Justine",conv:176,csat:77,score:4.3,frtPct:46,frtMed:6.4},{name:"Patrick",conv:191,csat:79,score:4.4,frtPct:48,frtMed:6.2},{name:"Raphaël",conv:146,csat:78,score:4.3,frtPct:44,frtMed:6.9}],
+    [{name:"Héloise",conv:194,csat:77,score:4.3,frtPct:45,frtMed:6.7},{name:"Justine",conv:165,csat:73,score:4.1,frtPct:42,frtMed:7.2},{name:"Patrick",conv:180,csat:75,score:4.2,frtPct:44,frtMed:7.0},{name:"Raphaël",conv:143,csat:74,score:4.2,frtPct:41,frtMed:7.5}],
+    [{name:"Héloise",conv:158,csat:74,score:4.2,frtPct:42,frtMed:7.2},{name:"Justine",conv:134,csat:70,score:4.0,frtPct:39,frtMed:7.8},{name:"Patrick",conv:147,csat:72,score:4.1,frtPct:41,frtMed:7.5},{name:"Raphaël",conv:102,csat:71,score:4.1,frtPct:38,frtMed:8.0}],
+  ],
+  tags: [
+    {name:"Badgeuse",    counts:[98,122,115,136,128,103,114,82,46,126,141,136,108]},
+    {name:"Équipes",     counts:[38,48,44,54,50,40,46,33,18,50,56,53,42]},
+    {name:"Permissions", counts:[35,44,42,50,47,37,43,31,17,47,53,50,39]},
+    {name:"Contrats",    counts:[28,36,34,40,38,30,34,25,14,38,43,41,32]},
+    {name:"Impression",  counts:[26,33,31,37,35,27,31,23,13,35,39,37,29]},
+  ],
+  heatmap: {
+    days:["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],
+    hours:[7,8,9,10,11,12,13,14,15,16,17,18],
+    vals:[
+      [18,68,94,84,68,55,78,80,68,48,28,12],
+      [15,60,82,74,60,50,70,72,62,44,26,10],
+      [14,55,76,68,56,48,65,67,58,41,24,9],
+      [13,51,70,63,52,44,60,62,54,38,22,8],
+      [12,48,65,58,48,41,56,57,50,35,20,7],
+      [5,18,28,22,16,14,18,18,14,10,7,3],
+      [3,12,18,14,10,9,12,12,9,6,4,2],
+    ]
+  }
+};
+
+// ── State & chart refs ────────────────────────────────────────────────────────
+let weekIdx = DATA.weeks.length - 1;
+const charts = {};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const P  = '#534AB7';   // purple
+const T  = '#1D9E75';   // teal
+const C  = '#D85A30';   // coral
+const AM = '#BA7517';   // amber
+
+function stars(score) {
+  return '<span class="stars">' +
+    [1,2,3,4,5].map(i =>
+      `<span class="${i <= Math.round(score) ? 's-on' : 's-off'}">★</span>`
+    ).join('') + '</span>';
+}
+
+function badgeFor(val, goodThr, warnThr, suffix = '') {
+  const cls = val >= goodThr ? 'b-good' : val >= warnThr ? 'b-warn' : 'b-bad';
+  return `<span class="badge ${cls}">${val}${suffix}</span>`;
+}
+
+function trendHtml(curr, prev, suffix, higherGood) {
+  if (prev == null) return '';
+  const diff = curr - prev;
+  if (Math.abs(diff) < 0.5) return `<span class="t-neu">= stable</span>`;
+  const up = diff > 0;
+  const good = higherGood ? up : !up;
+  return `<span class="${good ? 't-up' : 't-dn'}">${up ? '↑' : '↓'} ${Math.abs(diff).toFixed(diff % 1 === 0 ? 0 : 1)}${suffix} vs S-1</span>`;
+}
+
+function deltaHtml(curr, prev, higherGood) {
+  if (prev == null) return '<span class="d-neu">—</span>';
+  const diff = curr - prev;
+  if (Math.abs(diff) < 0.5) return '<span class="d-neu">=</span>';
+  const up = diff > 0;
+  const good = higherGood ? up : !up;
+  const cls = good ? 'd-pos' : 'd-neg';
+  return `<span class="${cls}">${up ? '+' : ''}${diff.toFixed(diff % 1 === 0 ? 0 : 1)}</span>`;
+}
+
+function kpiClass(val, goodThr, warnThr) {
+  if (val >= goodThr) return 'k-good';
+  if (val >= warnThr) return 'k-warn';
+  return 'k-bad';
+}
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+function last8Labels() {
+  const start = Math.max(0, weekIdx - 7);
+  return DATA.weeks.slice(start, weekIdx + 1).map(w => w.split(' ')[0]);
+}
+
+// ── Auto-insights ─────────────────────────────────────────────────────────────
+function buildInsights(w, prev) {
+  const ins = [];
+  if (prev) {
+    const pct = Math.round(100 * (w.conv - prev.conv) / prev.conv);
+    if (pct > 10)  ins.push({t:'warn', icon:'📈', txt:`Volume en hausse de ${pct}% vs S-1 (${w.conv} conversations) — prévoir une charge accrue.`});
+    else if (pct < -10) ins.push({t:'good', icon:'📉', txt:`Volume en baisse de ${Math.abs(pct)}% vs S-1 (${w.conv} conversations) — semaine moins chargée.`});
+  }
+  if (w.csatPos < 68) ins.push({t:'bad',  icon:'⚠️', txt:`CSAT positif à ${w.csatPos}% — en dessous du seuil de 70%. Analyser les notes ≤ 3 et identifier les sujets de mécontentement.`});
+  else if (w.csatPos >= 78) ins.push({t:'good', icon:'✅', txt:`Excellent CSAT à ${w.csatPos}% — au-dessus des 70% d'objectif. Bonne semaine qualité.`});
+  if (w.frtPct < 38) ins.push({t:'bad',  icon:'⏱️', txt:`Seulement ${w.frtPct}% des conversations traitées en < 5 min — FRT médian de ${w.medFrt} min. Point à adresser en priorité.`});
+  if (w.medFrt > 10) ins.push({t:'warn', icon:'🐢', txt:`FRT médian élevé à ${w.medFrt} min — les clients attendent plus longtemps que d'habitude.`});
+  if (Math.round(100 * w.rated / w.conv) < 13) ins.push({t:'warn', icon:'📊', txt:`Faible taux d'évaluation CSAT (${Math.round(100 * w.rated / w.conv)}%) — les résultats CSAT sont à interpréter avec prudence cette semaine.`});
+  if (w.prio > 20)  ins.push({t:'warn', icon:'🔴', txt:`${w.prio} conversations prioritaires cette semaine — à vérifier si toutes ont été traitées dans les délais.`});
+  return ins.slice(0, 3);
+}
+
+// ── Render : KPIs ─────────────────────────────────────────────────────────────
+function renderKpis() {
+  const w = DATA.team[weekIdx];
+  const p = weekIdx > 0 ? DATA.team[weekIdx - 1] : null;
+  const evalRate = Math.round(100 * w.rated / w.conv);
+
+  $('weekLabel').textContent = DATA.weeks[weekIdx];
+  $('btnPrev').disabled = weekIdx === 0;
+  $('btnNext').disabled = weekIdx === DATA.weeks.length - 1;
+
+  // Conversations
+  $('v-conv').textContent = w.conv;
+  $('s-conv').textContent = `dont ${w.prio} prioritaires`;
+  $('t-conv').innerHTML = trendHtml(w.conv, p?.conv, '', true);
+
+  // CSAT positif
+  $('v-csat').textContent = w.csatPos + '%';
+  $('s-csat').textContent = `sur ${w.rated} évaluées`;
+  $('t-csat').innerHTML = trendHtml(w.csatPos, p?.csatPos, '%', true);
+  $('p-csat').style.width = Math.min(100, w.csatPos * 100 / 100) + '%';
+  $('p-csat').style.background = w.csatPos >= 75 ? T : w.csatPos >= 65 ? AM : C;
+  $('kc-csat').className = 'kpi ' + kpiClass(w.csatPos, 75, 65);
+
+  // FRT <5min
+  $('v-frt').textContent = w.frtPct + '%';
+  $('s-frt').textContent = 'réponses < 5 min';
+  $('t-frt').innerHTML = trendHtml(w.frtPct, p?.frtPct, '%', true);
+  $('p-frt').style.width = Math.min(100, w.frtPct) + '%';
+  $('p-frt').style.background = w.frtPct >= 45 ? T : w.frtPct >= 35 ? AM : C;
+  $('kc-frt').className = 'kpi ' + kpiClass(w.frtPct, 45, 35);
+
+  // Score moyen
+  $('v-score').textContent = w.avgScore.toFixed(1) + '/5';
+  $('s-score').innerHTML = stars(w.avgScore);
+  $('t-score').innerHTML = trendHtml(w.avgScore, p?.avgScore, '', true);
+  $('kc-score').className = 'kpi ' + kpiClass(w.avgScore, 4.2, 3.9);
+
+  // Taux d'évaluation
+  $('v-eval').textContent = evalRate + '%';
+  $('s-eval').textContent = `${w.rated} / ${w.conv} convs`;
+  $('t-eval').innerHTML = p ? trendHtml(evalRate, Math.round(100 * p.rated / p.conv), '%', true) : '';
+  $('kc-eval').className = 'kpi ' + (evalRate >= 15 ? 'k-good' : evalRate >= 10 ? 'k-warn' : 'k-bad');
+
+  // Ribbon
+  const ins = buildInsights(w, p);
+  $('ribbon').innerHTML = ins.map(i =>
+    `<div class="insight i-${i.t}"><span class="i-icon">${i.icon}</span><span>${i.txt}</span></div>`
+  ).join('');
+
+  // Alerts
+  const alerts = [];
+  if (w.csatPos < 70)  alerts.push({t:'bad',  icon:'⚠️', txt:`CSAT positif (${w.csatPos}%) en dessous de l'objectif de 70% — identifier les 1 et 2 étoiles.`});
+  if (w.frtPct  < 40)  alerts.push({t:'bad',  icon:'⏱️', txt:`FRT <5min (${w.frtPct}%) en dessous de l'objectif de 40% — le FRT médian est de ${w.medFrt} min.`});
+  if (w.medFrt  > 8)   alerts.push({t:'warn', icon:'🐢', txt:`FRT médian élevé : ${w.medFrt} min. Cible < 5 min.`});
+  if (w.prio    > 18)  alerts.push({t:'warn', icon:'🔴', txt:`${w.prio} conversations prioritaires — vérifier leur prise en charge.`});
+  if (evalRate  < 12)  alerts.push({t:'warn', icon:'📊', txt:`Taux d'évaluation CSAT faible (${evalRate}%) — interpréter les résultats CSAT avec prudence.`});
+  if (w.csatPos >= 75 && w.frtPct >= 45) alerts.push({t:'good', icon:'🏆', txt:`Bonne semaine : CSAT positif à ${w.csatPos}% et FRT <5min à ${w.frtPct}%. Tous les indicateurs au vert.`});
+  if (!alerts.length)  alerts.push({t:'good', icon:'✅', txt:'Tous les indicateurs dans les normes cette semaine.'});
+
+  $('alertBox').innerHTML = alerts.slice(0, 4).map(a =>
+    `<div class="alert a-${a.t}"><span class="a-icon">${a.icon}</span><span>${a.txt}</span></div>`
+  ).join('');
+
+  renderCsatDist();
+  renderFrtChart();
+  renderTrends();
+}
+
+// ── Render : CSAT distribution ────────────────────────────────────────────────
+function renderCsatDist() {
+  const c = DATA.csat[weekIdx];
+  const total = c.reduce((a, b) => a + b, 0);
+  const maxV = Math.max(...c);
+  const colors = ['#E24B4A','#EF9F27','#9E9E9E','#1D9E75','#534AB7'];
+  const labels = ['1★','2★','3★','4★','5★'];
+  $('csatDist').innerHTML = c.map((v, i) => {
+    const pct = Math.round(100 * v / total);
+    const h   = Math.max(4, Math.round(54 * v / maxV));
+    return `<div class="csat-col">
+      <div class="csat-bwrap"><div class="csat-bar" style="height:${h}px;background:${colors[i]};"></div></div>
+      <div class="csat-lbl">${labels[i]}</div>
+      <div class="csat-pct">${pct}%</div>
+    </div>`;
+  }).join('');
+  const pos = c[3] + c[4];
+  const posRate = Math.round(100 * pos / total);
+  const posClass = posRate >= 75 ? 'b-good' : posRate >= 65 ? 'b-warn' : 'b-bad';
+  $('csatPosBadge').textContent = posRate + '% positives';
+  $('csatPosBadge').className = 'badge ' + posClass;
+  $('csatLegend').textContent = `${pos} notes positives (≥ 4★) sur ${total} · score moyen : ${DATA.team[weekIdx].avgScore.toFixed(1)}/5`;
+}
+
+// ── Render : FRT trend chart ──────────────────────────────────────────────────
+function renderFrtChart() {
+  destroyChart('frt');
+  const start = Math.max(0, weekIdx - 7);
+  const labels = DATA.weeks.slice(start, weekIdx + 1).map(w => w.split(' ')[0]);
+  const vals   = DATA.team.slice(start, weekIdx + 1).map(t => t.medFrt);
+  const ctx = $('frtChart').getContext('2d');
+  charts['frt'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'FRT médian (min)',
+          data: vals,
+          borderColor: P,
+          backgroundColor: 'rgba(83,74,183,.08)',
+          fill: true,
+          tension: .3,
+          pointRadius: vals.map((_,i) => i === vals.length-1 ? 6 : 3),
+          pointBackgroundColor: vals.map((_,i) => i === vals.length-1 ? P : '#AFA9EC'),
+          borderWidth: 2,
+        },
+        {
+          label: 'Objectif 5 min',
+          data: Array(labels.length).fill(5),
+          borderColor: C,
+          borderDash: [5,3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y + ' min' } } },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } },
+        y: { min: 0, ticks: { font: { size: 9 } }, grid: { color: 'rgba(128,128,128,.1)' } }
+      }
+    }
+  });
+}
+
+// ── Render : Trends (conv + CSAT) ─────────────────────────────────────────────
+function renderTrends() {
+  destroyChart('convT'); destroyChart('csatT');
+  const start  = Math.max(0, weekIdx - 7);
+  const labels = DATA.weeks.slice(start, weekIdx + 1).map(w => w.split(' ')[0]);
+  const convV  = DATA.team.slice(start, weekIdx + 1).map(t => t.conv);
+  const csatV  = DATA.team.slice(start, weekIdx + 1).map(t => t.csatPos);
+
+  charts['convT'] = new Chart($('convTrend').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [{
+      data: convV, borderColor: P, backgroundColor: 'rgba(83,74,183,.07)',
+      fill: true, tension: .3, pointRadius: 3, borderWidth: 2,
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } },
+        y: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(128,128,128,.1)' } }
+      }
+    }
+  });
+
+  charts['csatT'] = new Chart($('csatTrend').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [
+      {
+        label: 'CSAT positif %',
+        data: csatV, borderColor: T, backgroundColor: 'rgba(29,158,117,.07)',
+        fill: true, tension: .3, pointRadius: 3, borderWidth: 2,
+      },
+      {
+        label: 'Objectif 70%',
+        data: Array(labels.length).fill(70),
+        borderColor: AM, borderDash: [5,3], borderWidth: 1.5,
+        pointRadius: 0, fill: false,
+      }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } },
+        y: { min: 50, max: 100, ticks: { font: { size: 9 }, callback: v => v + '%' }, grid: { color: 'rgba(128,128,128,.1)' } }
+      }
+    }
+  });
+}
+
+// ── Render : Agents ───────────────────────────────────────────────────────────
+function renderAgents() {
+  const agents = DATA.agents[weekIdx];
+  const prev   = weekIdx > 0 ? DATA.agents[weekIdx - 1] : null;
+
+  $('agentTbody').innerHTML = agents.map((a, i) => {
+    const p = prev?.[i];
+    return `<tr>
+      <td style="font-weight:600;">${a.name}</td>
+      <td>${a.conv}</td>
+      <td>${deltaHtml(a.conv, p?.conv, true)}</td>
+      <td>${badgeFor(a.csat, 75, 65, '%')}</td>
+      <td>${deltaHtml(a.csat, p?.csat, true)}</td>
+      <td>${stars(a.score)} <span style="font-size:10px;color:var(--color-text-secondary);">${a.score.toFixed(1)}</span></td>
+      <td>${deltaHtml(a.score, p?.score, true)}</td>
+      <td>${badgeFor(a.frtPct, 45, 35, '%')}</td>
+      <td>${deltaHtml(a.frtPct, p?.frtPct, true)}</td>
+      <td style="color:var(--color-text-secondary);">${a.frtMed} min</td>
+    </tr>`;
+  }).join('');
+
+  // Bar chart
+  destroyChart('agBar');
+  charts['agBar'] = new Chart($('agentBarChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: agents.map(a => a.name),
+      datasets: [{
+        label: 'Conversations',
+        data: agents.map(a => a.conv),
+        backgroundColor: [P,'#1D9E75','#BA7517','#D85A30'],
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(128,128,128,.1)' } }
+      }
+    }
+  });
+
+  // FRT comparison
+  destroyChart('agFrt');
+  charts['agFrt'] = new Chart($('agentFrtChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: agents.map(a => a.name),
+      datasets: [
+        {
+          label: 'FRT médian (min)',
+          data: agents.map(a => a.frtMed),
+          backgroundColor: agents.map(a => a.frtMed <= 5 ? T : a.frtMed <= 8 ? AM : C),
+          borderRadius: 5,
+        },
+        {
+          label: 'Objectif 5 min',
+          data: Array(agents.length).fill(5),
+          type: 'line',
+          borderColor: C,
+          borderDash: [5,3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        y: { min: 0, ticks: { font: { size: 9 }, callback: v => v + ' min' }, grid: { color: 'rgba(128,128,128,.1)' } }
+      }
+    }
+  });
+}
+
+// ── Render : Volume ───────────────────────────────────────────────────────────
+function renderVolume() {
+  destroyChart('dow');
+  const days = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const vals = [2704, 2248, 2067, 1938, 1922, 553, 367];
+  charts['dow'] = new Chart($('dowChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'Conversations',
+        data: vals,
+        backgroundColor: days.map(d => ['Sam','Dim'].includes(d) ? '#AFA9EC' : P),
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' conversations' } } },
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(128,128,128,.1)' } }
+      }
+    }
+  });
+
+  // Heatmap
+  const hm = DATA.heatmap;
+  const maxV = Math.max(...hm.vals.flat());
+  const ramp = ['#EEEDFE','#CECBF6','#AFA9EC','#7F77DD','#534AB7','#3C3489','#26215C'];
+  const col = v => ramp[Math.min(ramp.length-1, Math.round((v/maxV)*(ramp.length-1)))];
+
+  let html = '<table class="heatmap"><thead><tr><th></th>';
+  hm.hours.forEach(h => { html += `<th>${h}h</th>`; });
+  html += '</tr></thead><tbody>';
+  hm.days.forEach((d, di) => {
+    html += `<tr><th style="text-align:left;padding-right:6px;font-weight:400;color:var(--color-text-secondary);">${d}</th>`;
+    hm.hours.forEach((_, hi) => {
+      const v = hm.vals[di][hi];
+      const bg = col(v);
+      const tc = v > maxV * .5 ? '#EEEDFE' : '#3C3489';
+      html += `<td style="background:${bg};color:${tc};" title="${d} ${hm.hours[hi]}h : ${v} conversations">${v}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  $('heatmapWrap').innerHTML = html;
+
+  $('heatLegend').innerHTML = ramp.map(c =>
+    `<div style="width:16px;height:10px;background:${c};border-radius:2px;"></div>`
+  ).join('');
+}
+
+// ── Render : Topics ───────────────────────────────────────────────────────────
+function renderTopics() {
+  const tags  = DATA.tags;
+  const week  = tags.map(t => ({ name: t.name, count: t.counts[weekIdx] }));
+  const prev  = weekIdx > 0 ? tags.map(t => t.counts[weekIdx - 1]) : null;
+  const maxC  = Math.max(...week.map(t => t.count));
+
+  $('topicsWeekLbl').textContent = DATA.weeks[weekIdx];
+  $('tagList').innerHTML = week.map((t, i) => {
+    let deltaHtml2 = '';
+    if (prev) {
+      const d = t.count - prev[i];
+      if (Math.abs(d) > 0)
+        deltaHtml2 = `<span class="tag-delta" style="color:${d > 0 ? C : T};">${d > 0 ? '+' : ''}${d}</span>`;
+      else
+        deltaHtml2 = `<span class="tag-delta" style="color:var(--color-text-secondary);">—</span>`;
+    }
+    return `<div class="tag-row">
+      <span class="tag-name">${t.name}</span>
+      <div class="tag-bwrap"><div class="tag-bar" style="width:${Math.round(100*t.count/maxC)}%;"></div></div>
+      <span class="tag-cnt">${t.count}</span>
+      ${deltaHtml2}
+    </div>`;
+  }).join('');
+
+  destroyChart('tagT');
+  const colors = [P, T, AM, C, '#888780'];
+  const labels = DATA.weeks.map(w => w.split(' ')[0]);
+  charts['tagT'] = new Chart($('tagTrendChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: tags.slice(0, 3).map((t, i) => ({
+        label: t.name,
+        data: t.counts,
+        borderColor: colors[i],
+        backgroundColor: 'transparent',
+        tension: .3,
+        borderWidth: 2,
+        pointRadius: t.counts.map((_,j) => j === weekIdx ? 5 : 2),
+        pointBackgroundColor: t.counts.map((_,j) => j === weekIdx ? colors[i] : colors[i]),
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { display: false }, grid: { display: false } },
+        y: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(128,128,128,.1)' } }
+      }
+    }
+  });
+
+  $('tagTrendLegend').innerHTML = tags.slice(0,3).map((t,i) =>
+    `<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary);">
+      <span style="width:10px;height:10px;border-radius:2px;background:${colors[i]};display:inline-block;"></span>
+      ${t.name}
+    </span>`
+  ).join('');
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function changeWeek(dir) {
+  weekIdx = Math.max(0, Math.min(DATA.weeks.length - 1, weekIdx + dir));
+  renderKpis();
+  if (!$('tab-agents').hidden  && $('tab-agents').style.display !== 'none')  renderAgents();
+  if (!$('tab-topics').hidden  && $('tab-topics').style.display !== 'none')  renderTopics();
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+  $('tab-' + name).style.display = '';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  if (name === 'agents') renderAgents();
+  if (name === 'volume') renderVolume();
+  if (name === 'topics') renderTopics();
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft')  changeWeek(-1);
+  if (e.key === 'ArrowRight') changeWeek(1);
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderKpis();
+</script>
