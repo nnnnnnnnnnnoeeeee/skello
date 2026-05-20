@@ -269,4 +269,4 @@ html_raw     = Path("skello_support_dashboard_lorette.html").read_text()
 html_final   = inject_data(html_raw, real_data)
 
 b64 = base64.b64encode(html_final.encode("utf-8")).decode()
-st.iframe(f"data:text/html;base64,{b64}", height=1250)
+st.iframe(f"data:text/html;charset=utf-8;base64,{b64}", height=1250)
