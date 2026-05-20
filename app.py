@@ -255,7 +255,7 @@ def inject_data(html: str, data: dict) -> str:
 
 
 # ── Streamlit app ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Support Skello", layout="centered", page_icon="📊")
+st.set_page_config(page_title="Support Skello", layout="wide", page_icon="📊")
 
 # Strip all Streamlit chrome so only the HTML shows
 st.markdown("""
@@ -271,4 +271,4 @@ html_raw     = Path("skello_support_dashboard_lorette.html").read_text()
 html_final   = inject_data(html_raw, real_data)
 
 b64 = base64.b64encode(html_final.encode("utf-8")).decode()
-st.iframe(f"data:text/html;charset=utf-8;base64,{b64}", height=1250)
+st.iframe(f"data:text/html;charset=utf-8;base64,{b64}", height=1400)
