@@ -1,395 +1,328 @@
 -- ============================================================
 -- SKELLO SUPPORT — MODÈLE DE DONNÉES REPORTING
--- Auteur : Noé (Data Analyst Intern candidate)
--- Base source : Snowflake (tables CONVERSATIONS, CONVERSATION_PARTS)
--- Périmètre : Dashboard hebdomadaire de Lorette (équipe Support)
+-- Auteur   : Noé (Data Analyst Intern)
+-- Source   : Snowflake — tables CONVERSATIONS et CONVERSATION_PARTS
+-- Objectif : Alimenter le dashboard hebdomadaire de Lorette
 -- ============================================================
-
--- ============================================================
--- NOTES DE MODÉLISATION
--- ============================================================
--- 1. Les champs ASSIGNEE, AUTHOR, CONVERSATION_RATING, TAGS
---    sont stockés en JSON dans la source. On les parse à la couche
---    de staging pour exposer des colonnes typées en downstream.
 --
--- 2. Le "périmètre équipe Support" est filtré sur les assignee_id
---    connus : Héloise (5217337), Justine (5391224),
---    Patrick (5440474), Raphael (5300290).
---    Les conversations assignées à d'autres IDs sont exclues
---    des métriques individuelles mais conservées pour le volume global.
+-- SCHÉMA DE LECTURE (8 étapes)
 --
--- 3. Les messages de bots sont exclus de toutes les métriques
---    (conformément à la consigne). Seuls les messages de type
---    author.type IN ('admin', 'user') sont comptabilisés.
+--   ÉTAPE 1  dim_support_agents      Qui sont les 4 agents de l'équipe ?
+--   ÉTAPE 2  stg_conversations       Nettoyer les conversations (parsing JSON)
+--   ÉTAPE 3  stg_messages            Garder uniquement les vrais messages
+--   ÉTAPE 4  int_premier_msg_client  Quand le client a-t-il écrit pour la 1re fois ?
+--   ÉTAPE 5  int_premiere_reponse    Quand l'agent a-t-il répondu pour la 1re fois ?
+--   ÉTAPE 6  int_conversations       Vue centrale : 1 ligne par conversation, tout calculé
+--   ÉTAPE 7  mart_kpis_hebdo         KPIs de l'équipe, agrégés par semaine
+--   ÉTAPE 8  mart_agents_hebdo       Mêmes KPIs, détaillés par agent et par semaine
+--   ÉTAPE 9  mart_heatmap_volume     Volume de conversations par jour et par heure
 --
--- 4. Le FRT (First Response Time) est calculé comme l'écart entre
---    le premier message client (user) et la première réponse admin
---    sur la même conversation, excluant les bots.
---
--- 5. La CSAT est extraite du champ CONVERSATION_RATING.rating
---    (note de 1 à 5). Le taux CSAT positif = % de notes >= 4.
---
--- 6. Questions que j'aurais posées à Lorette :
---    - La "semaine" est-elle calée sur lundi-dimanche ou glissante ?
---    - Y a-t-il une SLA officielle pour le FRT (5 min = la cible) ?
---    - Les conversations réouvertes doivent-elles être recomptées ?
---    - Faut-il suivre les conversations non assignées à l'équipe ?
---    - Le bot de premier niveau fait-il partie du process officiel
---      (impact sur le FRT perçu par le client) ?
 -- ============================================================
 
 
 -- ============================================================
--- LAYER 1 — STAGING (parsing JSON, typage, déduplication)
+-- ÉTAPE 1 — Référentiel des agents Support
 -- ============================================================
+-- Pourquoi une table séparée ?
+-- Si un agent rejoint ou quitte l'équipe, on met à jour ici
+-- et tous les rapports se mettent à jour automatiquement.
 
--- STG_CONVERSATIONS
--- Parse les champs JSON, nettoie les timestamps, expose l'assignee_id
-CREATE OR REPLACE VIEW STG_CONVERSATIONS AS
+CREATE OR REPLACE TABLE dim_support_agents AS
+SELECT * FROM (VALUES
+    (5217337, 'Héloise'),
+    (5391224, 'Justine'),
+    (5440474, 'Patrick'),
+    (5300290, 'Raphael')
+) AS t (agent_id, agent_name);
+
+
+-- ============================================================
+-- ÉTAPE 2 — Nettoyage des conversations
+-- ============================================================
+-- Problème : ASSIGNEE et CONVERSATION_RATING sont stockés en JSON
+-- dans la source Intercom. On les "parse" ici pour avoir des colonnes
+-- normales utilisables dans toutes les étapes suivantes.
+--
+-- QUALIFY ROW_NUMBER() : l'ETL (Stitch/Airbyte) peut re-charger
+-- une même ligne en cas d'erreur réseau. Cette ligne garantit
+-- qu'on ne garde qu'une seule version par conversation —
+-- la plus récente (_SDC_EXTRACTED_AT = timestamp de l'extraction).
+
+CREATE OR REPLACE VIEW stg_conversations AS
 SELECT
-    ID                                                          AS conversation_id,
-    TO_TIMESTAMP_NTZ(CREATED_AT)                                AS created_at,
-    TO_TIMESTAMP_NTZ(UPDATED_AT)                                AS updated_at,
-    STATE,
-    OPEN,
+    ID                                                AS conversation_id,
+    TO_TIMESTAMP_NTZ(CREATED_AT)                      AS created_at,
+
+    -- L'assignee est un JSON : {"id": 5217337, "type": "admin"}
+    -- On extrait uniquement l'ID numérique
+    TRY_PARSE_JSON(ASSIGNEE):id::INTEGER              AS assignee_id,
+
+    -- La note CSAT est un JSON : {"rating": 4, "created_at": ...}
+    -- On extrait uniquement la note (1 à 5)
+    TRY_PARSE_JSON(CONVERSATION_RATING):rating::INTEGER AS csat_rating,
+
+    -- Les tags sont un JSON : [{"name": "Badgeuse"}, {"name": "Équipes"}]
+    -- On garde le JSON brut, on le dénormalisera si besoin
+    TAGS                                              AS tags_raw,
+
     PRIORITY,
-    READ,
-    -- Parse JSON ASSIGNEE → id + type
-    PARSE_JSON(ASSIGNEE):id::VARCHAR                            AS assignee_id,
-    PARSE_JSON(ASSIGNEE):type::VARCHAR                          AS assignee_type,
-    -- Parse JSON CONVERSATION_RATING
-    PARSE_JSON(CONVERSATION_RATING):rating::INTEGER             AS csat_rating,
-    PARSE_JSON(CONVERSATION_RATING):created_at::TIMESTAMP_NTZ  AS csat_rated_at,
-    PARSE_JSON(CONVERSATION_RATING):teammate:id::VARCHAR        AS csat_teammate_id,
-    -- Indique si la conversation a reçu une note CSAT
-    CASE
-        WHEN PARSE_JSON(CONVERSATION_RATING):rating IS NOT NULL THEN TRUE
-        ELSE FALSE
-    END                                                         AS has_csat,
-    -- Tags : on garde le JSON brut, il sera dénormalisé dans une table dédiée
-    TAGS                                                        AS tags_raw,
-    SNOOZED_UNTIL
+    STATE
+
 FROM CONVERSATIONS
--- Déduplication sur la clé primaire (protection contre re-loads ETL)
 QUALIFY ROW_NUMBER() OVER (PARTITION BY ID ORDER BY _SDC_EXTRACTED_AT DESC) = 1;
 
 
--- STG_CONVERSATION_PARTS
--- Parse AUTHOR, filtre les bots, expose part_group propre
-CREATE OR REPLACE VIEW STG_CONVERSATION_PARTS AS
+-- ============================================================
+-- ÉTAPE 3 — Nettoyage des messages
+-- ============================================================
+-- On ne garde que les vrais messages (PART_GROUP = 'Message').
+-- Les autres valeurs de PART_GROUP sont des événements système :
+--   - 'Assignment' : réassignation à un agent
+--   - 'Close'      : fermeture de la conversation
+--   - 'Quick Reply': bouton automatique du bot
+--
+-- On exclut aussi les bots (author_type = 'bot') car ils ne
+-- reflètent pas l'effort de l'équipe Support.
+--
+-- Note : la documentation Intercom parle de "part_type" mais
+-- la colonne réelle dans les données s'appelle "PART_GROUP".
+
+CREATE OR REPLACE VIEW stg_messages AS
 SELECT
-    ID                                                          AS part_id,
-    CONVERSATION_ID                                             AS conversation_id,
-    PART_GROUP                                                  AS part_type,
-    -- Parse JSON AUTHOR
-    PARSE_JSON(AUTHOR):id::VARCHAR                              AS author_id,
-    PARSE_JSON(AUTHOR):type::VARCHAR                            AS author_type,
-    -- Parse ASSIGNED_TO (float dans source → varchar)
-    ASSIGNED_TO::VARCHAR                                        AS assigned_to_id,
-    TO_TIMESTAMP_NTZ(CREATED_AT)                                AS created_at,
-    TO_TIMESTAMP_NTZ(UPDATED_AT)                                AS updated_at,
-    BODY
+    CONVERSATION_ID                               AS conversation_id,
+    TO_TIMESTAMP_NTZ(CREATED_AT)                  AS created_at,
+
+    -- L'auteur est un JSON : {"id": 5217337, "type": "admin"}
+    -- On extrait le type pour distinguer client / agent / bot
+    TRY_PARSE_JSON(AUTHOR):type::VARCHAR          AS author_type
+
 FROM CONVERSATION_PARTS
--- Exclusion des bots (consigne explicite)
-WHERE PARSE_JSON(AUTHOR):type::VARCHAR <> 'bot'
+WHERE PART_GROUP = 'Message'                      -- uniquement les vrais messages
+  AND TRY_PARSE_JSON(AUTHOR):type::VARCHAR <> 'bot' -- on exclut les bots
 QUALIFY ROW_NUMBER() OVER (PARTITION BY ID ORDER BY _SDC_EXTRACTED_AT DESC) = 1;
 
 
--- STG_CONVERSATION_TAGS (dénormalisation du tableau JSON TAGS)
--- Une ligne par tag par conversation
-CREATE OR REPLACE VIEW STG_CONVERSATION_TAGS AS
+-- ============================================================
+-- ÉTAPE 4 — Premier message du client par conversation
+-- ============================================================
+-- On cherche la date du premier message envoyé par le client
+-- (author_type = 'user'). C'est le moment où le chronomètre
+-- du FRT commence : le client attend une réponse à partir de là.
+
+CREATE OR REPLACE VIEW int_premier_msg_client AS
 SELECT
-    c.ID                                                        AS conversation_id,
-    t.value:id::VARCHAR                                         AS tag_id,
-    t.value:name::VARCHAR                                       AS tag_name,
-    TO_TIMESTAMP_NTZ(t.value:applied_at::VARCHAR)               AS applied_at
-FROM CONVERSATIONS c,
-LATERAL FLATTEN(input => TRY_PARSE_JSON(c.TAGS))               AS t
-WHERE c.TAGS IS NOT NULL
-  AND c.TAGS != '[]';
+    conversation_id,
+    MIN(created_at) AS premier_msg_client_at
+FROM stg_messages
+WHERE author_type = 'user'
+GROUP BY conversation_id;
 
 
 -- ============================================================
--- LAYER 2 — MARTS (tables agrégées pour le reporting)
+-- ÉTAPE 5 — Première réponse de l'agent par conversation
 -- ============================================================
+-- On cherche la date de la première réponse d'un agent humain
+-- (author_type = 'admin'). Les bots sont déjà exclus depuis
+-- l'étape 3, donc tous les 'admin' ici sont des humains.
+-- C'est le moment où le chronomètre du FRT s'arrête.
 
--- -------------------------------------------------------
--- MART 1 : FACT_CONVERSATIONS
--- Grain : 1 ligne par conversation
--- Usage : volume, CSAT, durée, priorité, FRT
--- -------------------------------------------------------
-CREATE OR REPLACE TABLE MART_FACT_CONVERSATIONS AS
+CREATE OR REPLACE VIEW int_premiere_reponse AS
+SELECT
+    conversation_id,
+    MIN(created_at) AS premiere_reponse_at
+FROM stg_messages
+WHERE author_type = 'admin'
+GROUP BY conversation_id;
 
-WITH
 
--- Première réponse admin (non-bot) par conversation
-first_admin_response AS (
-    SELECT
-        conversation_id,
-        MIN(created_at)     AS first_admin_response_at
-    FROM STG_CONVERSATION_PARTS
-    WHERE part_type = 'Message'
-      AND author_type = 'admin'
-    GROUP BY conversation_id
-),
+-- ============================================================
+-- ÉTAPE 6 — Vue centrale : une ligne par conversation
+-- ============================================================
+-- On assemble tout : conversation + FRT calculé + flags métier.
+-- C'est la table de référence de tout le reporting.
+--
+-- Calcul du FRT (First Response Time) :
+--   FRT = premiere_reponse_at - premier_msg_client_at
+--   On utilise les étapes 4 et 5, pas CREATED_AT.
+--   Pourquoi ? CREATED_AT = quand la conv est ouverte (souvent
+--   par le bot). Le client commence à attendre quand IL écrit,
+--   pas quand la conversation est créée techniquement.
+--
+-- SLA = FRT inférieur à 5 minutes (= 300 secondes).
+--   Hypothèse retenue faute d'information officielle.
+--   Question à poser à Lorette : "Est-ce bien 5 min ?"
 
--- Premier message client par conversation
-first_user_message AS (
-    SELECT
-        conversation_id,
-        MIN(created_at)     AS first_user_message_at
-    FROM STG_CONVERSATION_PARTS
-    WHERE part_type = 'Message'
-      AND author_type = 'user'
-    GROUP BY conversation_id
-),
-
--- Dernier événement par conversation (pour calculer la durée)
-last_part AS (
-    SELECT
-        conversation_id,
-        MAX(created_at)     AS last_part_at
-    FROM STG_CONVERSATION_PARTS
-    GROUP BY conversation_id
-),
-
--- Comptage des messages par conversation
-message_counts AS (
-    SELECT
-        conversation_id,
-        COUNT_IF(author_type = 'user')  AS user_message_count,
-        COUNT_IF(author_type = 'admin') AS admin_message_count,
-        COUNT(*)                         AS total_message_count
-    FROM STG_CONVERSATION_PARTS
-    WHERE part_type = 'Message'
-    GROUP BY conversation_id
-)
-
+CREATE OR REPLACE VIEW int_conversations AS
 SELECT
     c.conversation_id,
     c.created_at,
-    c.updated_at,
-    c.state,
-    c.priority,
     c.assignee_id,
-    c.assignee_type,
-
-    -- CSAT
     c.csat_rating,
-    c.has_csat,
-    CASE
-        WHEN c.csat_rating >= 4 THEN TRUE
-        WHEN c.csat_rating IS NOT NULL THEN FALSE
-        ELSE NULL
-    END                                                         AS is_csat_positive,
+    c.priority,
+    c.state,
 
-    -- First Response Time (FRT) en secondes
-    far.first_admin_response_at,
-    fum.first_user_message_at,
-    DATEDIFF(
-        'second',
-        fum.first_user_message_at,
-        far.first_admin_response_at
-    )                                                           AS frt_seconds,
-    CASE
-        WHEN DATEDIFF('second', fum.first_user_message_at, far.first_admin_response_at) <= 300
-        THEN TRUE
-        ELSE FALSE
-    END                                                         AS is_frt_under_5min,
+    -- Dates de référence pour le FRT
+    m_client.premier_msg_client_at,
+    m_admin.premiere_reponse_at,
 
-    -- Durée totale de la conversation (création → dernier événement)
-    lp.last_part_at,
-    DATEDIFF('minute', c.created_at, lp.last_part_at)          AS conversation_duration_min,
+    -- FRT en secondes (NULL si pas de réponse ou pas de message client)
+    DATEDIFF('second',
+        m_client.premier_msg_client_at,
+        m_admin.premiere_reponse_at
+    ) AS frt_secondes,
 
-    -- Volumes de messages
-    COALESCE(mc.user_message_count, 0)                          AS user_message_count,
-    COALESCE(mc.admin_message_count, 0)                         AS admin_message_count,
-    COALESCE(mc.total_message_count, 0)                         AS total_message_count,
-
-    -- Dimensions temporelles (utiles pour les aggrégations hebdomadaires)
-    DATE_TRUNC('week', c.created_at)                            AS week_start,
-    DAYOFWEEK(c.created_at)                                     AS day_of_week_num,   -- 0=dim, 1=lun, ..., 6=sam
-    DAYNAME(c.created_at)                                       AS day_of_week_name,
-    HOUR(c.created_at)                                          AS hour_of_day,
-
-    -- Flag : conversation traitée par l'équipe Support de Lorette
-    CASE
-        WHEN c.assignee_id IN ('5217337','5391224','5440474','5300290')
-        THEN TRUE
-        ELSE FALSE
-    END                                                         AS is_support_team_conversation
-
-FROM STG_CONVERSATIONS                  c
-LEFT JOIN first_admin_response          far ON c.conversation_id = far.conversation_id
-LEFT JOIN first_user_message            fum ON c.conversation_id = fum.conversation_id
-LEFT JOIN last_part                     lp  ON c.conversation_id = lp.conversation_id
-LEFT JOIN message_counts                mc  ON c.conversation_id = mc.conversation_id;
-
-
--- -------------------------------------------------------
--- MART 2 : DIM_SUPPORT_AGENTS
--- Grain : 1 ligne par agent Support
--- Usage : label lisible pour tous les rapports individuels
--- -------------------------------------------------------
-CREATE OR REPLACE TABLE MART_DIM_SUPPORT_AGENTS AS
-SELECT * FROM (VALUES
-    ('5217337', 'Héloise'),
-    ('5391224', 'Justine'),
-    ('5440474', 'Patrick'),
-    ('5300290', 'Raphaël')
-) AS t(agent_id, agent_name);
-
-
--- -------------------------------------------------------
--- MART 3 : AGG_WEEKLY_TEAM
--- Grain : 1 ligne par semaine
--- Usage : KPIs globaux hebdomadaires de l'équipe Support
--- -------------------------------------------------------
-CREATE OR REPLACE TABLE MART_AGG_WEEKLY_TEAM AS
-SELECT
-    week_start,
-    COUNT(*)                                                    AS total_conversations,
-    COUNT(CASE WHEN is_support_team_conversation THEN 1 END)    AS support_conversations,
-    -- CSAT
+    -- FRT en minutes, plus lisible pour les dashboards
     ROUND(
-        100.0 * COUNT(CASE WHEN is_csat_positive = TRUE THEN 1 END)
-              / NULLIF(COUNT(CASE WHEN has_csat THEN 1 END), 0),
+        DATEDIFF('second',
+            m_client.premier_msg_client_at,
+            m_admin.premiere_reponse_at
+        ) / 60.0,
         1
-    )                                                           AS csat_positive_rate_pct,
-    ROUND(AVG(CASE WHEN csat_rating IS NOT NULL THEN csat_rating END), 2)
-                                                                AS avg_csat_score,
-    COUNT(CASE WHEN has_csat THEN 1 END)                        AS rated_conversations,
-    -- FRT
-    ROUND(
-        100.0 * COUNT(CASE WHEN is_frt_under_5min AND frt_seconds > 0 THEN 1 END)
-              / NULLIF(COUNT(CASE WHEN frt_seconds > 0 THEN 1 END), 0),
-        1
-    )                                                           AS frt_under_5min_pct,
-    ROUND(MEDIAN(CASE WHEN frt_seconds > 0 THEN frt_seconds / 60.0 END), 1)
-                                                                AS median_frt_min,
-    -- Durée de conversation
-    ROUND(MEDIAN(conversation_duration_min), 1)                 AS median_duration_min,
-    -- Messages
-    SUM(user_message_count)                                     AS total_user_messages,
-    SUM(admin_message_count)                                    AS total_admin_messages,
-    -- Priorité
-    COUNT(CASE WHEN priority = 'priority' THEN 1 END)           AS priority_conversations
-FROM MART_FACT_CONVERSATIONS
-GROUP BY week_start
-ORDER BY week_start DESC;
+    ) AS frt_minutes,
 
+    -- La conversation a-t-elle reçu une réponse humaine ?
+    CASE WHEN m_admin.premiere_reponse_at IS NOT NULL
+         THEN TRUE ELSE FALSE
+    END AS a_recu_une_reponse,
 
--- -------------------------------------------------------
--- MART 4 : AGG_WEEKLY_AGENT
--- Grain : 1 ligne par (semaine, agent)
--- Usage : performance individuelle des membres de l'équipe
--- -------------------------------------------------------
-CREATE OR REPLACE TABLE MART_AGG_WEEKLY_AGENT AS
-SELECT
-    f.week_start,
-    f.assignee_id                                               AS agent_id,
-    a.agent_name,
-    COUNT(*)                                                    AS conversations_handled,
-    -- CSAT
-    ROUND(
-        100.0 * COUNT(CASE WHEN f.is_csat_positive = TRUE THEN 1 END)
-              / NULLIF(COUNT(CASE WHEN f.has_csat THEN 1 END), 0),
-        1
-    )                                                           AS csat_positive_rate_pct,
-    ROUND(AVG(CASE WHEN f.csat_rating IS NOT NULL THEN f.csat_rating END), 2)
-                                                                AS avg_csat_score,
-    COUNT(CASE WHEN f.has_csat THEN 1 END)                      AS rated_conversations,
-    -- FRT
-    ROUND(
-        100.0 * COUNT(CASE WHEN f.is_frt_under_5min AND f.frt_seconds > 0 THEN 1 END)
-              / NULLIF(COUNT(CASE WHEN f.frt_seconds > 0 THEN 1 END), 0),
-        1
-    )                                                           AS frt_under_5min_pct,
-    ROUND(MEDIAN(CASE WHEN f.frt_seconds > 0 THEN f.frt_seconds / 60.0 END), 1)
-                                                                AS median_frt_min,
-    -- Durée & messages
-    ROUND(MEDIAN(f.conversation_duration_min), 1)               AS median_duration_min,
-    SUM(f.admin_message_count)                                  AS messages_sent,
-    -- Priorité
-    COUNT(CASE WHEN f.priority = 'priority' THEN 1 END)         AS priority_conversations
-FROM MART_FACT_CONVERSATIONS            f
-INNER JOIN MART_DIM_SUPPORT_AGENTS      a ON f.assignee_id = a.agent_id
-WHERE f.is_support_team_conversation = TRUE
-GROUP BY f.week_start, f.assignee_id, a.agent_name
-ORDER BY f.week_start DESC, conversations_handled DESC;
+    -- La SLA est-elle respectée ? (FRT < 5 minutes = 300 secondes)
+    CASE WHEN DATEDIFF('second',
+                m_client.premier_msg_client_at,
+                m_admin.premiere_reponse_at) <= 300
+         THEN TRUE ELSE FALSE
+    END AS sla_respectee,
 
+    -- La note CSAT est-elle positive ? (4 ou 5 étoiles sur 5)
+    -- Convention Intercom : 4 = Bon, 5 = Excellent
+    CASE WHEN c.csat_rating >= 4 THEN TRUE
+         WHEN c.csat_rating IS NOT NULL THEN FALSE
+         ELSE NULL
+    END AS csat_positif,
 
--- -------------------------------------------------------
--- MART 5 : AGG_HOURLY_VOLUME
--- Grain : 1 ligne par (jour de semaine, heure)
--- Usage : heatmap de charge — "quand l'équipe est-elle la plus sollicitée ?"
--- -------------------------------------------------------
-CREATE OR REPLACE TABLE MART_AGG_HOURLY_VOLUME AS
-SELECT
-    day_of_week_num,
-    day_of_week_name,
-    hour_of_day,
-    COUNT(*)                                                    AS conversation_count,
-    ROUND(AVG(COUNT(*)) OVER (
-        PARTITION BY day_of_week_num, hour_of_day
-    ), 1)                                                       AS avg_per_slot
-FROM MART_FACT_CONVERSATIONS
-GROUP BY day_of_week_num, day_of_week_name, hour_of_day
-ORDER BY day_of_week_num, hour_of_day;
+    -- Cette conversation est-elle traitée par l'équipe Support de Lorette ?
+    CASE WHEN c.assignee_id IN (5217337, 5391224, 5440474, 5300290)
+         THEN TRUE ELSE FALSE
+    END AS est_equipe_support,
 
+    -- Dimension temporelle : semaine ISO (lundi au dimanche)
+    DATE_TRUNC('week', c.created_at) AS semaine,
+    DAYOFWEEK(c.created_at)          AS jour_semaine,  -- 0 = dim, 1 = lun, ...
+    HOUR(c.created_at)               AS heure
 
--- -------------------------------------------------------
--- MART 6 : AGG_TAGS_WEEKLY
--- Grain : 1 ligne par (semaine, tag)
--- Usage : thèmes récurrents, priorisation des sujets
--- -------------------------------------------------------
-CREATE OR REPLACE TABLE MART_AGG_TAGS_WEEKLY AS
-SELECT
-    DATE_TRUNC('week', c.created_at)                            AS week_start,
-    t.tag_name,
-    COUNT(DISTINCT t.conversation_id)                           AS conversation_count
-FROM STG_CONVERSATION_TAGS              t
-INNER JOIN STG_CONVERSATIONS            c ON t.conversation_id = c.conversation_id
-GROUP BY DATE_TRUNC('week', c.created_at), t.tag_name
-ORDER BY week_start DESC, conversation_count DESC;
-
-
--- -------------------------------------------------------
--- MART 7 : AGG_CSAT_DISTRIBUTION
--- Grain : 1 ligne par (semaine, note CSAT)
--- Usage : distribution des notes pour détecter des dérives
--- -------------------------------------------------------
-CREATE OR REPLACE TABLE MART_AGG_CSAT_DISTRIBUTION AS
-SELECT
-    week_start,
-    csat_rating,
-    COUNT(*)                                                    AS rating_count,
-    ROUND(
-        100.0 * COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY week_start),
-        1
-    )                                                           AS rating_pct
-FROM MART_FACT_CONVERSATIONS
-WHERE csat_rating IS NOT NULL
-GROUP BY week_start, csat_rating
-ORDER BY week_start DESC, csat_rating;
+FROM stg_conversations          c
+LEFT JOIN int_premier_msg_client m_client ON c.conversation_id = m_client.conversation_id
+LEFT JOIN int_premiere_reponse   m_admin  ON c.conversation_id = m_admin.conversation_id;
+-- LEFT JOIN et non INNER JOIN : on garde toutes les conversations,
+-- même celles sans réponse (elles comptent dans le volume total).
 
 
 -- ============================================================
--- EXEMPLE DE REQUÊTE REPORTING — KPIs semaine en cours
--- (à adapter en paramètre dans l'outil BI)
+-- ÉTAPE 7 — KPIs hebdomadaires de l'équipe
 -- ============================================================
+-- Une ligne par semaine. C'est ce qui alimente les cartes KPI
+-- et les graphiques de tendance dans le dashboard de Lorette.
+--
+-- Dénominateur du FRT <5min = conversations ayant reçu une réponse.
+-- Pourquoi pas le total ? Pour ne pas pénaliser l'équipe pour
+-- les conversations abandonnées par le client avant toute réponse.
 
-/*
+CREATE OR REPLACE TABLE mart_kpis_hebdo AS
 SELECT
-    t.week_start,
-    t.support_conversations,
-    t.csat_positive_rate_pct,
-    t.avg_csat_score,
-    t.frt_under_5min_pct,
-    t.median_frt_min,
-    t.median_duration_min,
-    t.priority_conversations
-FROM MART_AGG_WEEKLY_TEAM t
-WHERE t.week_start = DATE_TRUNC('week', CURRENT_DATE)
-ORDER BY t.week_start DESC;
-*/
+    semaine,
+
+    -- Volume
+    COUNT(*)                                                        AS nb_conversations,
+    SUM(CASE WHEN est_equipe_support THEN 1 ELSE 0 END)            AS nb_conversations_support,
+    SUM(CASE WHEN priority = 'priority' THEN 1 ELSE 0 END)         AS nb_prioritaires,
+
+    -- CSAT
+    COUNT(CASE WHEN csat_rating IS NOT NULL THEN 1 END)             AS nb_evaluees,
+    ROUND(AVG(csat_rating), 2)                                      AS score_csat_moyen,
+    ROUND(
+        100.0
+        * COUNT(CASE WHEN csat_positif = TRUE THEN 1 END)
+        / NULLIF(COUNT(CASE WHEN csat_rating IS NOT NULL THEN 1 END), 0)
+    , 1)                                                            AS taux_csat_positif_pct,
+    -- NULLIF(..., 0) évite une division par zéro si aucune conv n'est évaluée
+
+    -- FRT
+    ROUND(MEDIAN(CASE WHEN frt_secondes > 0 THEN frt_minutes END), 1) AS frt_median_min,
+    -- Médiane et non moyenne : la moyenne est biaisée par les conversations
+    -- ouvertes la nuit (ex : FRT de 8h = 480 min). La médiane représente
+    -- l'expérience client typique.
+
+    ROUND(
+        100.0
+        * COUNT(CASE WHEN sla_respectee = TRUE AND frt_secondes > 0 THEN 1 END)
+        / NULLIF(COUNT(CASE WHEN a_recu_une_reponse = TRUE THEN 1 END), 0)
+    , 1)                                                            AS taux_sla_respectee_pct
+
+FROM int_conversations
+WHERE est_equipe_support = TRUE
+GROUP BY semaine
+ORDER BY semaine DESC;
+
+
+-- ============================================================
+-- ÉTAPE 8 — Performance par agent et par semaine
+-- ============================================================
+-- Mêmes métriques que l'étape 7, mais déclinées par agent.
+-- JOIN INNER sur dim_support_agents : seuls les agents connus
+-- de l'équipe apparaissent ici.
+
+CREATE OR REPLACE TABLE mart_agents_hebdo AS
+SELECT
+    conv.semaine,
+    agents.agent_name,
+
+    -- Volume
+    COUNT(*)                                                        AS nb_conversations,
+    COUNT(CASE WHEN conv.priority = 'priority' THEN 1 END)         AS nb_prioritaires,
+
+    -- CSAT
+    COUNT(CASE WHEN conv.csat_rating IS NOT NULL THEN 1 END)        AS nb_evaluees,
+    ROUND(AVG(conv.csat_rating), 2)                                 AS score_csat_moyen,
+    ROUND(
+        100.0
+        * COUNT(CASE WHEN conv.csat_positif = TRUE THEN 1 END)
+        / NULLIF(COUNT(CASE WHEN conv.csat_rating IS NOT NULL THEN 1 END), 0)
+    , 1)                                                            AS taux_csat_positif_pct,
+
+    -- FRT
+    ROUND(MEDIAN(CASE WHEN conv.frt_secondes > 0 THEN conv.frt_minutes END), 1)
+                                                                    AS frt_median_min,
+    ROUND(
+        100.0
+        * COUNT(CASE WHEN conv.sla_respectee = TRUE AND conv.frt_secondes > 0 THEN 1 END)
+        / NULLIF(COUNT(CASE WHEN conv.a_recu_une_reponse = TRUE THEN 1 END), 0)
+    , 1)                                                            AS taux_sla_respectee_pct
+
+FROM int_conversations      conv
+INNER JOIN dim_support_agents agents ON conv.assignee_id = agents.agent_id
+-- INNER JOIN : on ne garde que les conversations assignées à un agent
+-- connu de l'équipe (les autres sont filtrées naturellement)
+
+GROUP BY conv.semaine, agents.agent_name
+ORDER BY conv.semaine DESC, nb_conversations DESC;
+
+
+-- ============================================================
+-- ÉTAPE 9 — Volume par jour et par heure (heatmap)
+-- ============================================================
+-- Répond à la question de Lorette : "À quels moments notre équipe
+-- est-elle le plus sollicitée dans la semaine ?"
+-- Utile pour organiser les plannings et anticiper les pics.
+--
+-- Note : les timestamps sont en UTC. Si Lorette préfère voir
+-- les horaires en heure de Paris, ajouter :
+--   CONVERT_TIMEZONE('UTC', 'Europe/Paris', created_at)
+
+CREATE OR REPLACE TABLE mart_heatmap_volume AS
+SELECT
+    jour_semaine,
+    heure,
+    COUNT(*)  AS nb_conversations
+FROM int_conversations
+WHERE est_equipe_support = TRUE
+GROUP BY jour_semaine, heure
+ORDER BY jour_semaine, heure;
