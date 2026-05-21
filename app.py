@@ -255,7 +255,7 @@ def patch_agent_table(html: str) -> str:
         "            <th class=\"th-metric\">Conv.</th>\n"
         "            <th class=\"th-metric\">CSAT pos.</th>\n"
         "            <th class=\"th-metric\">Note moy.</th>\n"
-        "            <th class=\"th-metric\">SLA &lt;5min</th>\n"
+        "            <th class=\"th-metric\">FRT &lt;5min (SLA)</th>\n"
         "            <th class=\"th-metric\">FRT méd.</th>\n"
         "          </tr>"
     )
@@ -311,11 +311,11 @@ def patch_sla_naming(html: str) -> str:
     """Rename 'FRT <5min' → 'SLA <5min' everywhere in the dashboard."""
     replacements = [
         # KPI card label (HTML entity, with space)
-        ("FRT &lt; 5 min",   "SLA &lt; 5 min"),
+        ("FRT &lt; 5 min",   "FRT &lt;5min (SLA)"),
         # HTML entity, no space (thead original + model tab description)
-        ("FRT &lt;5min",     "SLA &lt;5min"),
+        ("FRT &lt;5min",     "FRT &lt;5min (SLA)"),
         # Plain JS strings in alert messages
-        ("FRT <5min",        "SLA <5min"),
+        ("FRT <5min",        "FRT <5min (SLA)"),
     ]
     for old, new in replacements:
         html = html.replace(old, new)
