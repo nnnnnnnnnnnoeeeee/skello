@@ -310,10 +310,10 @@ def patch_agent_table(html: str) -> str:
 def patch_sla_naming(html: str) -> str:
     """Rename 'FRT <5min' → 'SLA <5min' everywhere in the dashboard."""
     replacements = [
-        # KPI card label (HTML entity, with space)
-        ("FRT &lt; 5 min",   "FRT &lt;5min (SLA)"),
-        # HTML entity, no space (thead original + model tab description)
+        # HTML entity no space FIRST — avoid double-match after next rule
         ("FRT &lt;5min",     "FRT &lt;5min (SLA)"),
+        # KPI card label has spaces around 5 — different string, safe after
+        ("FRT &lt; 5 min",   "FRT &lt;5min (SLA)"),
         # Plain JS strings in alert messages
         ("FRT <5min",        "FRT <5min (SLA)"),
     ]
