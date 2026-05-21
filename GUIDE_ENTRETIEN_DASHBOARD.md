@@ -133,12 +133,9 @@ Alertes contextuelles qui se déclenchent selon des seuils :
 
 ### Tableau agents (Performance par agent — semaine vs S-1)
 
-Colonnes : Agent · Conv. · Δ · CSAT pos. · Δ · Score · Δ · FRT <5min · Δ · FRT méd.
+Colonnes : Agent · Conv. · CSAT pos. · Note moy. · FRT <5min · FRT méd.
 
-**Les Δ (deltas)** : variation vs semaine précédente
-- Vert = amélioration
-- Rouge = dégradation
-- `=` = stable (variation < 0.5)
+Les colonnes Δ séparées ont été supprimées : chaque variation vs semaine précédente s'affiche maintenant **en sous-ligne directement sous sa valeur** (▲ vert = amélioration, ▼ rouge = dégradation, `=` = stable). Cela réduit le tableau de 10 à 6 colonnes et le rend nettement plus lisible.
 
 **Les badges colorés** (CSAT pos. et FRT <5min) :
 - Vert si au-dessus du seuil bon
@@ -262,6 +259,6 @@ Onglet de transparence sur la construction des données. Contient :
 |---|---|
 | Auto-insights générés automatiquement | Lorette ne doit pas chercher — le dashboard lui dit quoi regarder |
 | 5 KPIs et pas 15 | Un meeting de 30 min ne peut pas couvrir 15 métriques |
-| Δ vs S-1 partout | La valeur absolue ne suffit pas — la tendance est ce qui compte |
+| Δ vs S-1 intégré sous chaque valeur | La valeur absolue ne suffit pas — la tendance est ce qui compte. Les deltas sont affichés en sous-ligne pour ne pas multiplier les colonnes |
 | Badges verts/orange/rouge | Lecture en 5 secondes sans calculer |
 | Onglet Modèle | Transparence sur les choix — Lorette doit faire confiance aux chiffres |

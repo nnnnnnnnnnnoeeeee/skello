@@ -222,6 +222,91 @@ def build_data():
     }
 
 
+def patch_agent_table(html: str) -> str:
+    """Redesign agent table: collapse 4 separate Δ columns into inline stacked deltas."""
+
+    # 1. Inject CSS for stacked metric cells
+    css = (
+        "\n  .agt-tbl th.th-metric { text-align: center; }"
+        "\n  .agt-tbl td.td-metric { text-align: center; }"
+        "\n  .mv { font-size: 13px; font-weight: 600; line-height: 1.3; }"
+        "\n  .md { font-size: 9.5px; line-height: 1; margin-top: 2px; display: block; }"
+    )
+    html = html.replace("  /* ── Agent table ── */", css + "\n  /* ── Agent table ── */", 1)
+
+    # 2. Replace thead (10 cols → 6 cols)
+    old_head = (
+        "          <tr>\n"
+        "            <th>Agent</th>\n"
+        "            <th>Conv.</th>\n"
+        "            <th>Δ</th>\n"
+        "            <th>CSAT pos.</th>\n"
+        "            <th>Δ</th>\n"
+        "            <th>Score</th>\n"
+        "            <th>Δ</th>\n"
+        "            <th>FRT &lt;5min</th>\n"
+        "            <th>Δ</th>\n"
+        "            <th>FRT méd.</th>\n"
+        "          </tr>"
+    )
+    new_head = (
+        "          <tr>\n"
+        "            <th>Agent</th>\n"
+        "            <th class=\"th-metric\">Conv.</th>\n"
+        "            <th class=\"th-metric\">CSAT pos.</th>\n"
+        "            <th class=\"th-metric\">Note moy.</th>\n"
+        "            <th class=\"th-metric\">FRT &lt;5min</th>\n"
+        "            <th class=\"th-metric\">FRT méd.</th>\n"
+        "          </tr>"
+    )
+    html = html.replace(old_head, new_head, 1)
+
+    # 3. Replace tbody rendering in renderAgents()
+    old_rows = (
+        "    $('agentTbody').innerHTML = agents.map((a, i) => {\n"
+        "      const p = prev?.[i];\n"
+        "      const noData = a.conv === 0;\n"
+        "      return `<tr${noData ? ' style=\"opacity:.45;\"' : ''}>\n"
+        "      <td style=\"font-weight:600;\">${a.name}</td>\n"
+        "      <td>${a.conv}</td>\n"
+        "      <td>${noData ? nd : deltaHtml(a.conv, p?.conv, true)}</td>\n"
+        "      <td>${a.csat === null ? nd : badgeFor(a.csat, 75, 65, '%')}</td>\n"
+        "      <td>${a.csat === null ? nd : deltaHtml(a.csat, p?.csat, true)}</td>\n"
+        "      <td>${a.score === null ? nd : stars(a.score) + ' <span style=\"font-size:10px;color:var(--color-text-secondary);\">' + a.score.toFixed(1) + '</span>'}</td>\n"
+        "      <td>${a.score === null ? nd : deltaHtml(a.score, p?.score, true)}</td>\n"
+        "      <td>${a.frtPct === null ? nd : badgeFor(a.frtPct, 45, 35, '%')}</td>\n"
+        "      <td>${a.frtPct === null ? nd : deltaHtml(a.frtPct, p?.frtPct, true)}</td>\n"
+        "      <td style=\"color:var(--color-text-secondary);\">${a.frtMed === null ? nd : a.frtMed + ' min'}</td>\n"
+        "    </tr>`;\n"
+        "    }).join('');"
+    )
+    new_rows = (
+        "    $('agentTbody').innerHTML = agents.map((a, i) => {\n"
+        "      const p = prev?.[i];\n"
+        "      const noData = a.conv === 0;\n"
+        "      const frtCol = a.frtMed === null ? '' : a.frtMed <= 5 ? 'color:var(--skello-teal)' : a.frtMed <= 8 ? 'color:#BA7517' : 'color:var(--skello-coral)';\n"
+        "      return `<tr${noData ? ' style=\"opacity:.45;\"' : ''}>\n"
+        "      <td style=\"font-weight:600;font-size:13px;\">${a.name}</td>\n"
+        "      <td class=\"td-metric\"><div class=\"mv\">${a.conv}</div><span class=\"md\">${noData ? '' : deltaHtml(a.conv, p?.conv, true)}</span></td>\n"
+        "      <td class=\"td-metric\">${a.csat === null ? nd : '<div>' + badgeFor(a.csat, 75, 65, '%') + '</div><span class=\"md\">' + deltaHtml(a.csat, p?.csat, true) + '</span>'}</td>\n"
+        "      <td class=\"td-metric\">${a.score === null ? nd : '<div>' + stars(a.score) + ' <span style=\"font-size:10px;color:var(--color-text-secondary);\">' + a.score.toFixed(1) + '</span></div><span class=\"md\">' + deltaHtml(a.score, p?.score, true) + '</span>'}</td>\n"
+        "      <td class=\"td-metric\">${a.frtPct === null ? nd : '<div>' + badgeFor(a.frtPct, 45, 35, '%') + '</div><span class=\"md\">' + deltaHtml(a.frtPct, p?.frtPct, true) + '</span>'}</td>\n"
+        "      <td class=\"td-metric\">${a.frtMed === null ? nd : '<div class=\"mv\" style=\"' + frtCol + '\">' + a.frtMed + ' min</div><span class=\"md\">' + deltaHtml(a.frtMed, p?.frtMed, false) + '</span>'}</td>\n"
+        "    </tr>`;\n"
+        "    }).join('');"
+    )
+    html = html.replace(old_rows, new_rows, 1)
+
+    # 4. Simplify legend
+    html = html.replace(
+        "Δ = variation vs semaine précédente · 🟢\n      amélioration · 🔴 dégradation",
+        "variation vs S‑1 · <span style=\"color:var(--skello-teal);font-weight:600;\">▲ amélioration</span> · <span style=\"color:var(--skello-coral);font-weight:600;\">▼ dégradation</span>",
+        1,
+    )
+
+    return html
+
+
 def inject_data(html: str, data: dict) -> str:
     """Replace the const DATA = {...}; block in the HTML with real data."""
     marker = "const DATA = {"
@@ -269,6 +354,7 @@ iframe { border: none; }
 real_data    = build_data()
 html_raw     = Path("skello_support_dashboard_lorette.html").read_text()
 html_final   = inject_data(html_raw, real_data)
+html_final   = patch_agent_table(html_final)
 
 b64 = base64.b64encode(html_final.encode("utf-8")).decode()
 st.iframe(f"data:text/html;charset=utf-8;base64,{b64}", height=1400)
